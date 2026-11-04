@@ -1,0 +1,86 @@
+[
+ {
+  "mutant": "commit tools not gated",
+  "status": "caught"
+ },
+ {
+  "mutant": "unknown tools treated as safe",
+  "status": "caught"
+ },
+ {
+  "mutant": "missing request allowed",
+  "status": "caught"
+ },
+ {
+  "mutant": "automatic checks skipped",
+  "status": "caught"
+ },
+ {
+  "mutant": "no reviewer means allow",
+  "status": "caught"
+ },
+ {
+  "mutant": "reviewer failure allows",
+  "status": "caught"
+ },
+ {
+  "mutant": "reviewer hold ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "signature not checked",
+  "status": "caught"
+ },
+ {
+  "mutant": "expiry not checked",
+  "status": "caught"
+ },
+ {
+  "mutant": "arguments not bound",
+  "status": "caught"
+ },
+ {
+  "mutant": "token reusable",
+  "status": "caught"
+ },
+ {
+  "mutant": "no key still approves",
+  "status": "caught"
+ },
+ {
+  "mutant": "recovered failures still hold",
+  "status": "caught"
+ },
+ {
+  "mutant": "failed tools ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "missing tool check off",
+  "status": "caught"
+ },
+ {
+  "mutant": "loose verdict parsing",
+  "status": "caught"
+ },
+ {
+  "mutant": "tool output not quoted",
+  "status": "caught"
+ },
+ {
+  "mutant": "long output keeps head only",
+  "status": "caught"
+ },
+ {
+  "mutant": "audit chain not verified",
+  "status": "caught"
+ },
+ {
+  "mutant": "allowlist ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "failures left out of trace",
+  "status": "caught"
+ }
+]

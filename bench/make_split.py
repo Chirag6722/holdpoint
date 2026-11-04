@@ -27,7 +27,8 @@ def split(pairs_by_scenario, seed=SEED, dev_total=DEV_TOTAL):
 
 
 def main(tasks_path, out_path):
-    raw = open(tasks_path, "rb").read()
+    with open(tasks_path, "rb") as f:
+        raw = f.read()
     groups = collections.defaultdict(set)
     for line in raw.decode("utf-8").splitlines():
         if line.strip():
