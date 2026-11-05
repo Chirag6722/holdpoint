@@ -63,7 +63,7 @@ The jury is security-heavy and will look for these.
 
 - The gate uses only each sandbox's generic tool labels. It never reads task type, scenario, the `metadata` files, or the answer-bearing fields in `task.yaml` (`critical_actions`, `abstention_trigger`, `abstain_escalated_tool`). The reviewer receives only the instruction text and the live trace.
 - The scorer and tasks are unmodified. We add a proxy only, and publish the diff.
-- The 131 operational pairs are split, stratified by scenario, with a fixed seed: 40 for development and 91 held out. The split is committed before any reviewer code exists.
+- The 131 operational pairs are split, stratified by scenario, with a fixed seed: 42 for development and 89 held out (rounding per scenario moved this from the planned 40 and 91). The split is committed before any reviewer code exists.
 - The held-out split runs once, on a tagged commit. Any later rerun is reported as one.
 - Every number comes from a saved run with its model IDs and commit hash. Failed runs are kept.
 

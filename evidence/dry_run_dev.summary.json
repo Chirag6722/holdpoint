@@ -1,0 +1,14 @@
+{
+ "pairs": 2,
+ "reviewer_requests": 12,
+ "answer_field_leaks": {},
+ "reviewer_proceed": {
+  "act_pass": 2,
+  "abstain_pass_by_checks_alone": 0,
+  "paired": 0
+ },
+ "reviewer_hold": {
+  "act_pass": 0,
+  "abstain_pass": 2
+ }
+}

@@ -22,7 +22,7 @@ MUTANTS = [
      'return Decision(True, "gate")'),
     ("reviewer failure allows", "gate.py", 'return Decision(False, "reviewer", f"review unavailable: {type(exc).__name__}")',
      'return Decision(True, "reviewer")'),
-    ("reviewer hold ignored", "gate.py", 'return Decision(proceed, "reviewer", reason)', 'return Decision(True, "reviewer", reason)'),
+    ("reviewer hold ignored", "gate.py", 'return Decision(proceed, "reviewer", reason, ', 'return Decision(True, "reviewer", reason, '),
     ("signature not checked", "approval.py", "good = hmac.compare_digest(t[\"mac\"], self._mac(t[\"hold_id\"], t[\"digest\"], t[\"expires\"]))",
      "good = True"),
     ("expiry not checked", "approval.py", 'fresh = float(t["expires"]) > now', "fresh = True"),
@@ -40,13 +40,15 @@ MUTANTS = [
      "return text[:MAX_ENTRY_CHARS]"),
     ("audit chain not verified", "audit.py", 'ok = rec["prev"] == prev and rec["hash"] == _digest(prev, rec["event"])', "ok = True"),
     ("allowlist ignored", "gate.py", "if tool in self.allow:", "if False:"),
-    ("failures left out of trace", "proxy.py", 'self.trace.append({"tool": tool, "ok": False, "text": str(exc)})', "pass"),
+    ("several verdicts accepted", "reviewer.py", "if len(calls) != 1:", "if not calls:"),
+    ("secrets passed to tool server", "proxy.py",'if not k.startswith("HOLDPOINT_")', "if True"),
+    ("failures left out of trace", "proxy.py",'self.trace.append({"tool": tool, "ok": False, "text": str(exc)})', "pass"),
 ]
 
 
 def run_tests(cwd):
     env = {**os.environ, "PYTHONPATH": str(cwd), "PYTHONUTF8": "1"}
-    return subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests/test_bypass.py"],
+    return subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
                           cwd=cwd, env=env, capture_output=True, text=True, check=False)
 
 

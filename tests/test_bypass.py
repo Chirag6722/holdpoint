@@ -15,7 +15,7 @@ from fastmcp.exceptions import ToolError
 from holdpoint.approval import Approvals
 from holdpoint.audit import AuditLog, verify
 from holdpoint.gate import Gate
-from holdpoint.proxy import GateMiddleware, build
+from holdpoint.proxy import GateMiddleware, build, downstream_env
 from holdpoint.reviewer import build_messages, parse_verdict
 
 KEY = b"test-only-key"
@@ -299,6 +299,11 @@ def test_reviewer_timeout_or_failure_holds(tmp_path, failure):
 def test_malformed_verdicts_are_rejected(reply):
     with pytest.raises(ValueError):
         parse_verdict(reply)
+
+
+def test_signing_key_and_reviewer_credentials_do_not_reach_the_tool_server():
+    env = downstream_env({"PATH": "/bin", "HOLDPOINT_KEY": "secret", "HOLDPOINT_REVIEWER_KEY": "secret"})
+    assert env == {"PATH": "/bin"}
 
 
 def test_reviewer_saying_hold_stops_the_call(tmp_path):

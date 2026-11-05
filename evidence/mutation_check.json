@@ -80,6 +80,14 @@
   "status": "caught"
  },
  {
+  "mutant": "several verdicts accepted",
+  "status": "caught"
+ },
+ {
+  "mutant": "secrets passed to tool server",
+  "status": "caught"
+ },
+ {
   "mutant": "failures left out of trace",
   "status": "caught"
  }

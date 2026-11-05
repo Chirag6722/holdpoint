@@ -9,6 +9,7 @@ class Decision:
     allow: bool
     by: str
     reason: str = ""
+    usage: dict | None = None
 
 
 class Gate:
@@ -41,4 +42,4 @@ class Gate:
             proceed, reason = self.reviewer(self.intent, tool, args, trace)
         except Exception as exc:  # noqa: BLE001 - any review failure must hold
             return Decision(False, "reviewer", f"review unavailable: {type(exc).__name__}")
-        return Decision(proceed, "reviewer", reason)
+        return Decision(proceed, "reviewer", reason, getattr(self.reviewer, "last_usage", None))

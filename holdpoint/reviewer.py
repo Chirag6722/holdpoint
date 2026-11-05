@@ -61,15 +61,6 @@ class HttpReviewer:
         self.url = base_url.rstrip("/") + "/chat/completions"
         self.api_key, self.model, self.timeout = api_key, model, timeout
 
-    @classmethod
-    def from_env(cls):
-        key = os.environ.get("HOLDPOINT_REVIEWER_KEY")
-        model = os.environ.get("HOLDPOINT_REVIEWER_MODEL")
-        if not key or not model:
-            return None
-        base = os.environ.get("HOLDPOINT_REVIEWER_BASE_URL", "https://api.openai.com/v1")
-        return cls(base, key, model)
-
     def __call__(self, intent: str, tool: str, args: dict, trace: list[dict]) -> tuple[bool, str]:
         body = {"model": self.model, "messages": build_messages(intent, tool, args, trace),
                 "response_format": {"type": "json_object"}}
@@ -78,3 +69,48 @@ class HttpReviewer:
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             reply = json.load(resp)
         return parse_verdict(reply["choices"][0]["message"]["content"])
+
+
+VERDICT_TOOL = {
+    "name": "verdict",
+    "description": "Record the review decision.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"decision": {"type": "string", "enum": ["proceed", "hold"]},
+                       "reason": {"type": "string"}},
+        "required": ["decision", "reason"],
+    },
+}
+
+
+class AnthropicReviewer:
+    """The native Messages API, with the reply forced through a verdict tool."""
+
+    def __init__(self, base_url: str, api_key: str, model: str, timeout: float = 30.0):
+        self.url = base_url.rstrip("/") + "/v1/messages"
+        self.api_key, self.model, self.timeout = api_key, model, timeout
+
+    def __call__(self, intent: str, tool: str, args: dict, trace: list[dict]) -> tuple[bool, str]:
+        system, user = build_messages(intent, tool, args, trace)
+        body = {"model": self.model, "max_tokens": 300, "temperature": 0, "system": system["content"],
+                "messages": [user], "tools": [VERDICT_TOOL], "tool_choice": {"type": "tool", "name": "verdict"}}
+        req = urllib.request.Request(self.url, json.dumps(body).encode("utf-8"), {
+            "x-api-key": self.api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            reply = json.load(resp)
+        self.last_usage = reply.get("usage")
+        calls = [b for b in reply["content"] if b.get("type") == "tool_use" and b.get("name") == "verdict"]
+        if len(calls) != 1:
+            raise ValueError("expected exactly one verdict")
+        return parse_verdict(json.dumps(calls[0]["input"]))
+
+
+def reviewer_from_env():
+    """Build the configured reviewer, or None for human-approval-only mode."""
+    key = os.environ.get("HOLDPOINT_REVIEWER_KEY")
+    model = os.environ.get("HOLDPOINT_REVIEWER_MODEL")
+    if not key or not model:
+        return None
+    if os.environ.get("HOLDPOINT_REVIEWER_PROVIDER", "openai") == "anthropic":
+        return AnthropicReviewer(os.environ.get("HOLDPOINT_REVIEWER_BASE_URL", "https://api.anthropic.com"), key, model)
+    return HttpReviewer(os.environ.get("HOLDPOINT_REVIEWER_BASE_URL", "https://api.openai.com/v1"), key, model)

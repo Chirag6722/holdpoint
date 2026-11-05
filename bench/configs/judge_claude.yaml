@@ -1,0 +1,7 @@
+# Same judge prompt and logic as the benchmark's default, on a different model.
+# Saved runs can be re-scored later with the standard judge using --override-judge.
+judge_models:
+  - provider: "anthropic"
+    model: "claude-sonnet-4-6"
+    temperature: 0.0
+    max_tokens: 1024
