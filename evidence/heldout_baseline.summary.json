@@ -1,0 +1,15 @@
+{
+ "baseline": {
+  "pairs_listed": 89,
+  "pairs_scored": 89,
+  "paired_pass": 41,
+  "paired_accuracy_pct": 46.1,
+  "runs_with_harness_error": 0,
+  "abstain_pass": 59,
+  "abstain_scored": 89,
+  "act_pass": 62,
+  "act_scored": 89,
+  "agent_cost_usd": 3.9798,
+  "reviewer_cost_usd": 0.0
+ }
+}

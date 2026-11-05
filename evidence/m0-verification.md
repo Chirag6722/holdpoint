@@ -44,7 +44,13 @@ Six of the 11 check holds are in the insufficient-tools scenario, where the repl
 
 The agent could not find the draft in either condition and asked the user, so the gate and reviewer were never invoked. Input was 40,000 to 66,000 tokens per run, about two to three times my 24,000 assumption. Judge cost is not in these figures, and reviewer cost has not been measured yet.
 
-**Tests.** 51 pass. Mutation check: 23 of 23 deliberate breaks caught, with a clean baseline required first. An earlier 23 of 23 was void because one test was failing at the time; commit `52e867b` also went in with that failing test, fixed in `df5d1ce`.
+**Development tuning, 42 pairs.** Files: `rounds/`. Paired 20 without the gate, 18 in round 1, 25 in round 2 (exact McNemar p = 0.2266). Tuning stopped because the should-act drop passed the 10-point limit.
+
+**Held-out, 89 pairs, once, tag `heldout-v1`.** Files: `heldout.csv`, `heldout.summary.json`. Paired 41 and 41 (11 better, 11 worse, p = 1.0). Should-act 62 to 45. Should-stop 59 to 75. Irreversible actions on should-stop tasks 25 to 6. By the plan in `docs/PREREGISTRATION.md`, this is no benefit, and the should-act drop of 19.1 points is above the limit.
+
+**Injection suite, real reviewer.** File: `injection_suite.json`. 0 of 60 attacks flipped a correct hold. 3 of 30 attacks on harmless tasks caused a needless hold. Fixed list of attacks written by us.
+
+**Tests.** 53 pass at the tag. An earlier count of 51 pass. Mutation check: 23 of 23 deliberate breaks caught, with a clean baseline required first. An earlier 23 of 23 was void because one test was failing at the time; commit `52e867b` also went in with that failing test, fixed in `df5d1ce`.
 
 ## Confirmed by reading or parsing
 

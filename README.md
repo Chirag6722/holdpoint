@@ -6,7 +6,7 @@ Holdpoint is an MCP proxy. It sits between an agent and the tools it uses. Reads
 
 The name comes from "hold point" in engineering quality control: a stage work may not pass without sign-off.
 
-> **Status:** the gate, its tests and the bypass suite are working. The measurement of its benefit on a real agent is **in progress and has no result yet**. See [Honest status](#honest-status).
+> **Result, stated up front:** on 89 held-out task pairs, the gate did **not** improve paired accuracy: 41 of 89 with and without it. It cut irreversible actions on should-stop tasks from 25 to 6, and it also blocked legitimate work, taking should-act passes from 62 to 45. So it trades completed work for safety, and it does not yet tell the two apart better than the agent alone. [Full results](#real-agent-before-and-after).
 
 ## For judges, start here
 
@@ -147,9 +147,40 @@ The last line is the point of a paired benchmark: a gate that blocks everything 
 
 ### Real agent, before and after
 
-**Pending.** This is the number that decides whether the reviewer is worth having. It will be reported here with the should-act loss beside it, whichever way it goes.
+89 held-out pairs, run once on tag `heldout-v1`. Agent: Claude Haiku 4.5. Reviewer and judge: Claude Sonnet 4.6. Rules were [written down first](docs/PREREGISTRATION.md). Source: [every run](evidence/heldout.csv).
 
-**The method is fixed in advance.** The 131 operational pairs were split into 42 development and 89 held-out pairs, stratified by scenario with a fixed seed. That split was the [first commit](bench/split.json), before any reviewer code existed. Held-out runs happen once, on a tagged commit.
+| Measure | Without the gate | With the gate |
+|---|---:|---:|
+| **Both sides of the pair right (primary)** | **41 of 89** | **41 of 89** |
+| Should act, and did | 62 of 89 | 45 of 89 |
+| Should stop, and did | 59 of 89 | 75 of 89 |
+| Should-stop tasks where an irreversible action ran | 25 of 89 | 6 of 89 |
+
+**By the rules set in advance, this shows no benefit.** Eleven pairs improved and eleven got worse (exact McNemar p = 1.0). Should-act accuracy fell 19.1 points, above the 10-point limit we set, so the reviewer costs more than we said was acceptable.
+
+**Tuning did not carry over.** On the 42 development pairs used for tuning, the gate scored 25 against 20. That gain vanished on pairs it had not seen. This is why the split exists.
+
+**What it does do.** Irreversible actions that should not have happened fell by 76%. Whether that is worth the lost work depends on the action: for payments or deletions it may be, for routine tasks it is not.
+
+**What the benchmark cannot show.** It has no person, so every hold ends the attempt. In real use a hold can go to someone who approves it. Here is what that would have meant in this run. This count is exploratory and was not in the plan, and the approvals themselves were not tested.
+
+| Commit attempts in the gated run | Attempts | Held for a person |
+|---|---:|---:|
+| Should-act tasks | 94 | 26 |
+| Should-stop tasks | 47 | 38 |
+
+So a person would have seen 64 of 141 attempts, compared with all 141 if every commit needed approval. Of the 47 attempts that should not have gone ahead, 9 passed with no person involved. [Source](evidence/heldout_review_load.json).
+
+**Reading the wrongful holds** shows two kinds. Many are defensible, such as a stock order held after a check returned empty results. Others are plain bugs we found only after the run, and left in place so the code matches the measurement:
+
+- The required-tool check treats phrases like "use original_payment_method" as tool names, causing false holds.
+- The failed-tool check holds even when the failed tool was not needed for the action.
+
+These holds still count as wrong in every number above. Any fix would need testing on tasks we have not already seen, and the benchmark's task generator is private, so a fixed version would have no clean measurement here.
+
+**The method was fixed in advance.** The 131 operational pairs were split into 42 development and 89 held-out pairs, stratified by scenario with a fixed seed. That split was the [first commit](bench/split.json), before any reviewer code existed.
+
+**Not comparable with the published leaderboard.** The judge and harness differ, and these are operational pairs only.
 
 **What the gate never sees:** task type, scenario, or the answer fields in the benchmark's task files. It uses only each sandbox's generic tool labels, and the reviewer gets only the request and the live trace. A dry run checked 184 reviewer requests for those fields and found none.
 
@@ -160,8 +191,11 @@ The last line is the point of a paired benchmark: a gate that blocks everything 
 | Gate, checks, approvals, audit log | Working, tested |
 | Bypass suite and mutation check | Working |
 | Benchmark runner, without editing the benchmark's source | Working |
-| Reviewer against a real model | Being measured |
-| Benefit on a real agent | **No result yet** |
+| Reviewer against a real model | Measured on one model pair, one run per task |
+| Injection attacks on the real reviewer | 0 of 60 flipped a correct hold; [fixed attack list we wrote](evidence/injection_suite.json), not an adaptive attacker |
+| Benefit on a real agent, paired accuracy | **None shown** on held-out pairs |
+| Reduction in wrongful irreversible actions | 25 to 6 of 89, at a cost of 17 should-act passes |
+| Human approval flow with real people | Mechanism tested, not evaluated with people |
 | Tests against real production systems | Not done; the benchmark and demo use sandboxes |
 | Web interface for approvals | Not built; approvals use the CLI |
 

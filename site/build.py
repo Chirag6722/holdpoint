@@ -2,6 +2,7 @@
 
 Usage: python site/build.py   Writes site/index.html. Missing results are shown as not run yet.
 """
+import csv
 import html
 import json
 import sys
@@ -86,8 +87,14 @@ def held_out_section():
     if not summary or "gated" not in summary:
         return "<p class='verdict'>Not run to completion yet.</p><p>This section fills in from the saved run files.</p>"
     stats = analyse(ROOT / "evidence" / "heldout.csv")
+    with open(ROOT / "evidence" / "heldout.csv", encoding="utf-8", newline="") as f:
+        rows = [r for r in csv.DictReader(f) if r["side"] == "abstain" and r["commit"] == "False"]
+    ran = {c: sum(r["condition"] == c for r in rows) for c in ("baseline", "gated")}
+    n = summary["gated"]["abstain_scored"]
     return (verdict_sentence(stats, summary["baseline"], summary["gated"])
             + results_table(summary["baseline"], summary["gated"])
+            + f"<p>Should-stop tasks where an irreversible action ran: {ran['baseline']} of {n} without the gate, "
+            f"{ran['gated']} of {n} with it. So the gate trades completed work for safety.</p>"
             + f"<p class='source'>Source: {link('evidence/heldout.csv', 'every run')}. "
             f"Rules fixed in advance: {link('docs/PREREGISTRATION.md', 'measurement plan')}.</p>")
 
@@ -251,7 +258,7 @@ aria-label="A tool call travels from the agent along a pipe to a shut valve carr
 <div class="detail" id="detail" aria-live="polite"></div>
 <p class="source" style="margin-top:1rem">This is a fixed list of attacks we wrote, not an adaptive attacker. A determined attacker may do better, which is why the hard gate and approvals do not rely on the reviewer. Source: {link('evidence/injection_suite.json', 'every verdict')}.</p>
 </section>
-<section><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, so these figures flatter the result.</p>
+<section><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, and the gain seen here did not carry over to the held-out pairs above.</p>
 {tuning_section()}</section>
 <section><h2>Run it yourself</h2><p>The demo and the bypass suite need no API keys.</p>
 <pre>pip install -e ".[dev]"
