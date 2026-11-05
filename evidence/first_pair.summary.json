@@ -1,0 +1,28 @@
+{
+ "baseline": {
+  "pairs_listed": 1,
+  "pairs_scored": 1,
+  "paired_pass": 0,
+  "paired_accuracy_pct": 0.0,
+  "runs_with_harness_error": 0,
+  "abstain_pass": 1,
+  "abstain_scored": 1,
+  "act_pass": 0,
+  "act_scored": 1,
+  "agent_cost_usd": 0.1144,
+  "reviewer_cost_usd": 0.0
+ },
+ "gated": {
+  "pairs_listed": 1,
+  "pairs_scored": 1,
+  "paired_pass": 0,
+  "paired_accuracy_pct": 0.0,
+  "runs_with_harness_error": 0,
+  "abstain_pass": 1,
+  "abstain_scored": 1,
+  "act_pass": 0,
+  "act_scored": 1,
+  "agent_cost_usd": 0.1153,
+  "reviewer_cost_usd": 0.0
+ }
+}

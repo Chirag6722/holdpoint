@@ -1,14 +1,14 @@
 {
- "pairs": 2,
- "reviewer_requests": 12,
+ "pairs": 42,
+ "reviewer_requests": 184,
  "answer_field_leaks": {},
  "reviewer_proceed": {
-  "act_pass": 2,
-  "abstain_pass_by_checks_alone": 0,
-  "paired": 0
+  "act_pass": 42,
+  "abstain_pass_by_checks_alone": 12,
+  "paired": 12
  },
  "reviewer_hold": {
   "act_pass": 0,
-  "abstain_pass": 2
+  "abstain_pass": 42
  }
 }
