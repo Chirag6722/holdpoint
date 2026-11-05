@@ -40,7 +40,8 @@ class GateMiddleware(Middleware):
         args = dict(context.message.arguments or {})
         async with self.lock:
             tools = await context.fastmcp_context.fastmcp.list_tools()
-            inventory = {t.name for t in tools}
+            inventory = {t.name: {"description": t.description, "parameters": getattr(t, "parameters", None)}
+                         for t in tools}
             decision = await asyncio.to_thread(self.gate.decide, tool, args, inventory, list(self.trace))
             self.audit.append(tool=tool, args=args, allow=decision.allow, by=decision.by, reason=decision.reason,
                               usage=decision.usage)

@@ -60,7 +60,7 @@ class Backend:
 
 
 def always(proceed, reason="stub"):
-    return lambda intent, tool, args, trace: (proceed, reason)
+    return lambda intent, tool, args, trace, tool_info=None: (proceed, reason)
 
 
 def setup(tmp_path, reviewer=None, intent="Pay Ann 10 from acct 1.", key=KEY, allow=frozenset()):
@@ -299,6 +299,24 @@ def test_reviewer_timeout_or_failure_holds(tmp_path, failure):
 def test_malformed_verdicts_are_rejected(reply):
     with pytest.raises(ValueError):
         parse_verdict(reply)
+
+
+def test_reviewer_receives_the_tool_definition(tmp_path):
+    seen = {}
+
+    def reviewer(intent, tool, args, trace, tool_info=None):
+        seen.update(tool_info or {})
+        return True, "ok"
+
+    _, proxy, _ = setup(tmp_path, reviewer)
+
+    async def go():
+        async with Client(proxy) as c:
+            await call(c, "send_payment", **PAY)
+    run(go())
+    assert "amount" in json.dumps(seen["parameters"])
+    prompt = build_messages("Pay", "send_payment", PAY, [], seen)[1]["content"]
+    assert "TOOL_DEFINITION" in prompt and "amount" in prompt.split("TOOL_DEFINITION")[1]
 
 
 def test_signing_key_and_reviewer_credentials_do_not_reach_the_tool_server():

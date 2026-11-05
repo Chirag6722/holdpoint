@@ -22,7 +22,7 @@ class Gate:
         # Fail closed: a tool the policy does not name counts as irreversible.
         return self.policy.get(tool, "commit") == "commit"
 
-    def decide(self, tool: str, args: dict, inventory: set[str], trace: list[dict]) -> Decision:
+    def decide(self, tool: str, args: dict, inventory: dict, trace: list[dict]) -> Decision:
         if tool in self.allow:
             return Decision(True, "allowlist")
         if not self.is_commit(tool):
@@ -39,7 +39,7 @@ class Gate:
         if self.reviewer is None:
             return Decision(False, "gate", "needs human approval")
         try:
-            proceed, reason = self.reviewer(self.intent, tool, args, trace)
+            proceed, reason = self.reviewer(self.intent, tool, args, trace, inventory.get(tool))
         except Exception as exc:  # noqa: BLE001 - any review failure must hold
             return Decision(False, "reviewer", f"review unavailable: {type(exc).__name__}")
         return Decision(proceed, "reviewer", reason, getattr(self.reviewer, "last_usage", None))
