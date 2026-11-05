@@ -64,6 +64,7 @@ def main():
             work = Path(d)
             shutil.copytree(ROOT / "holdpoint", work / "holdpoint")
             shutil.copytree(ROOT / "tests", work / "tests")
+            shutil.copytree(ROOT / "examples", work / "examples")
             path = work / "holdpoint" / file
             src = path.read_text(encoding="utf-8").replace("\r\n", "\n")
             if src.count(old) != 1:

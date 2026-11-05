@@ -26,8 +26,7 @@ def main(argv=None):
     key = os.environ.get("HOLDPOINT_KEY")
     approvals = Approvals(a.state_dir, key.encode("utf-8") if key else None)
     if a.cmd == "holds":
-        for h in approvals.list_holds():
-            print(json.dumps(h, indent=1))
+        print(json.dumps(approvals.list_holds(), indent=1))
     else:
         approvals.approve(a.hold_id, a.ttl)
         print(f"approved {a.hold_id} for {a.ttl:.0f} seconds, one use")

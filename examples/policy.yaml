@@ -1,0 +1,3 @@
+# Label each tool. Anything not listed is treated as commit, so a new tool is held by default.
+read_balance: lookup
+send_payment: commit

@@ -1,0 +1,16 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: ruff check holdpoint tests
+      - run: pytest -q
+      - run: python tests/mutation_check.py
+      - name: No keys in the repository
+        run: "! git grep -nE 'sk-ant-[a-z]+-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|AIza[0-9A-Za-z_-]{30,}'"
