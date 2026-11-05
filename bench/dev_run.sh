@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Development split, baseline then gated, with cost guards. Never prints the key.
 set -u
-E="/mnt/c/Users/chira/Downloads/AI safety challange"
-cd "$HOME/agentabstain-spike" || exit 1
+E="${HOLDPOINT_REPO:-$PWD}"   # run from the repo root
+cd "${AGENTABSTAIN_DIR:-$HOME/agentabstain}" || exit 1
 PY=.venv-era/bin/python
 MODEL=claude-haiku-4-5
 BASELINE_AGENT_LIMIT=8.00

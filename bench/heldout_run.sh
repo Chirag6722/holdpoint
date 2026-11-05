@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The once-only held-out run. Refuses to start if results already exist.
 set -u
-E="/mnt/c/Users/chira/Downloads/AI safety challange"
-cd "$HOME/agentabstain-spike" || exit 1
+E="${HOLDPOINT_REPO:-$PWD}"   # run from the repo root
+cd "${AGENTABSTAIN_DIR:-$HOME/agentabstain}" || exit 1
 PY=.venv-era/bin/python
 MODEL=claude-haiku-4-5
 AGENT_LIMIT=12.00

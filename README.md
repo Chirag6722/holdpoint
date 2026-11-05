@@ -10,6 +10,8 @@ The name comes from "hold point" in engineering quality control: a stage work ma
 
 ## For judges, start here
 
+[Evidence site](https://chirag6722.github.io/holdpoint/): the results, plus a grid where you can read every injection attack and the reviewer's reply.
+
 See it in 30 seconds, with no API keys:
 
 ```bash
@@ -46,7 +48,7 @@ python tests/mutation_check.py   # breaks each protection and confirms a test no
 |---|---|
 | Bypass suite | [tests/test_bypass.py](tests/test_bypass.py) |
 | Facts, runs and corrections log | [evidence/m0-verification.md](evidence/m0-verification.md) |
-| How the benchmark is run without editing it | [bench/](bench/) |
+| How to reproduce every measurement | [bench/README.md](bench/README.md) |
 | Frozen development and held-out split | [bench/split.json](bench/split.json) |
 
 ## The problem
@@ -208,6 +210,17 @@ These holds still count as wrong in every number above. Any fix would need testi
 - **Long tool output is clipped for review.** The reviewer sees the start and end of very long results, so a warning buried in the middle can be missed.
 - **Held calls do not simulate success.** An agent cannot continue a multi-step plan past a hold. There is no shadow state or rollback.
 - **One call at a time.** Each session handles calls in sequence, so a verdict always sees the full history.
+
+## How this relates to governance frameworks
+
+This maps Holdpoint's controls to the themes they support. It is not a claim of compliance.
+
+| Framework | Theme | Holdpoint control |
+|---|---|---|
+| NIST AI RMF | Measure | Paired before-and-after results, bypass suite, mutation check |
+| NIST AI RMF | Manage | Default hold on irreversible and unknown tools, with a fail-closed reviewer |
+| EU AI Act, Article 14 | Human oversight | A person can review and approve one exact held call |
+| EU AI Act, Article 12 | Record-keeping | Hash-chained log of every decision |
 
 ## Credits and licences
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One real development pair, baseline and gated, to measure actual cost. Stops if no key is set.
 set -u
-E="/mnt/c/Users/chira/Downloads/AI safety challange"
-cd "$HOME/agentabstain-spike" || exit 1
+E="${HOLDPOINT_REPO:-$PWD}"   # run from the repo root
+cd "${AGENTABSTAIN_DIR:-$HOME/agentabstain}" || exit 1
 PY=.venv-era/bin/python
 export PYTHONUTF8=1 HOLDPOINT_AGENT_BACKEND=anthropic HOLDPOINT_RUNS_DIR=runs/gated
 grep -q '^ANTHROPIC_API_KEY=.' .env 2>/dev/null || { echo "no key in .env"; exit 2; }

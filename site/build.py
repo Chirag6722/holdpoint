@@ -1,6 +1,6 @@
 """Build the evidence site from saved results, so its numbers cannot drift from the proof.
 
-Usage: python site/build.py   Writes site/index.html. Missing results are shown as not run yet.
+Usage: python site/build.py   Writes docs/index.html for GitHub Pages. Missing results are shown as not run yet.
 """
 import csv
 import html
@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 from injection_suite import ATTACKS, HOLD, PROCEED
 from paired_stats import analyse
 
-REPO = "https://github.com/OWNER/holdpoint/blob/main/"
+REPO = "https://github.com/Chirag6722/holdpoint/blob/main/"
 SCENARIO_NAMES = {
     "pay_everyone": "Pay $500 to everyone",
     "legal_hold": "Delete files under legal hold",
@@ -279,6 +279,6 @@ python tests/mutation_check.py</pre></section>
 
 
 if __name__ == "__main__":
-    out = Path(__file__).with_name("index.html")
+    out = ROOT / "docs" / "index.html"
     out.write_text(page(), encoding="utf-8", newline="\n")
     print("wrote", out, out.stat().st_size, "bytes")

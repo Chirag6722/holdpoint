@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # One gated tuning round on the development split. Usage: dev_round.sh ROUND_NUMBER
 set -u
-E="/mnt/c/Users/chira/Downloads/AI safety challange"
+E="${HOLDPOINT_REPO:-$PWD}"   # run from the repo root
 R="$1"
-cd "$HOME/agentabstain-spike" || exit 1
+cd "${AGENTABSTAIN_DIR:-$HOME/agentabstain}" || exit 1
 PY=.venv-era/bin/python
 MODEL=claude-haiku-4-5
 export PYTHONUTF8=1 HOLDPOINT_AGENT_BACKEND=anthropic HOLDPOINT_RUNS_DIR="runs/gated_r$R"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Keyless dry run on the development split under Linux, in the release-date environment.
 set -u
-E="/mnt/c/Users/chira/Downloads/AI safety challange"
-cd "$HOME/agentabstain-spike" || exit 1
+E="${HOLDPOINT_REPO:-$PWD}"   # run from the repo root
+cd "${AGENTABSTAIN_DIR:-$HOME/agentabstain}" || exit 1
 export PYTHONUTF8=1
 .venv-era/bin/python "$E/bench/export_policy.py" "$E/bench/policy.yaml"
 .venv-era/bin/python "$E/bench/make_taskfiles.py"
