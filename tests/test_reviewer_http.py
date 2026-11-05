@@ -14,7 +14,7 @@ def serve(reply):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             seen["path"] = self.path
-            seen["headers"] = dict(self.headers)
+            seen["headers"] = {k.lower(): v for k, v in self.headers.items()}
             seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             data = json.dumps(reply).encode("utf-8")
             self.send_response(200)
@@ -67,7 +67,7 @@ def test_openai_compatible_reviewer():
     url, seen = serve({"choices": [{"message": {"content": '{"decision": "proceed", "reason": "r"}'}}]})
     assert HttpReviewer(url, "k", "m")("i", "t", {}, []) == (True, "r")
     assert seen["path"] == "/chat/completions"
-    assert seen["headers"]["Authorization"] == "Bearer k"
+    assert seen["headers"]["authorization"] == "Bearer k"
 
 
 def test_reviewer_selection_from_environment(monkeypatch):

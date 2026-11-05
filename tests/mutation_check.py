@@ -53,6 +53,11 @@ def run_tests(cwd):
 
 
 def main():
+    # A failing suite would make every mutant look caught, so the clean code must pass first.
+    clean = run_tests(ROOT)
+    if clean.returncode:
+        print(clean.stdout[-1500:])
+        sys.exit("the unmodified code fails its tests, so a mutation score would mean nothing")
     results = []
     for name, file, old, new in MUTANTS:
         with tempfile.TemporaryDirectory() as d:
