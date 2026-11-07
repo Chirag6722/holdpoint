@@ -1059,8 +1059,9 @@ def test_approval_screen_escapes_what_an_attacker_could_put_in_a_call():
     assert "<script>" not in page
 
 
-def test_support_demo_outcomes():
-    demo = subprocess.run([sys.executable, str(Path(__file__).parent.parent / "examples" / "support_demo.py")],
+@pytest.mark.parametrize("script", ["support_demo.py", "purchase_demo.py"])
+def test_scripted_demo_outcomes(script):
+    demo = subprocess.run([sys.executable, str(Path(__file__).parent.parent / "examples" / script)],
                           capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, timeout=180,
                           env={**os.environ, "PYTHONUTF8": "1"})
     assert demo.returncode == 0, demo.stderr[-800:]

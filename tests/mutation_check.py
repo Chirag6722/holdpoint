@@ -138,21 +138,29 @@ def run_tests(cwd):
                           cwd=cwd, env=env, capture_output=True, text=True, check=False)
 
 
+def copy_project(work):
+    for folder in ("holdpoint", "tests", "examples", "evidence"):
+        shutil.copytree(ROOT / folder, work / folder)
+
+
 def main():
     # A failing suite would make every mutant look caught, so the clean code must pass first.
     clean = run_tests(ROOT)
     if clean.returncode:
         print(clean.stdout[-1500:])
         sys.exit("the unmodified code fails its tests, so a mutation score would mean nothing")
+    # A copy could fail for a reason unrelated to the mutation, which would make every mutant look caught.
+    with tempfile.TemporaryDirectory() as d:
+        copy_project(Path(d))
+        control = run_tests(Path(d))
+        if control.returncode:
+            print(control.stdout[-1500:])
+            sys.exit("an unmodified copy fails its tests, so a mutation score would mean nothing")
     results = []
     for name, file, old, new in MUTANTS:
         with tempfile.TemporaryDirectory() as d:
             work = Path(d)
-            shutil.copytree(ROOT / "holdpoint", work / "holdpoint")
-            shutil.copytree(ROOT / "tests", work / "tests")
-            shutil.copytree(ROOT / "examples", work / "examples")
-            # Without this, a test that reads saved evidence fails in every copy and every mutant looks caught.
-            shutil.copytree(ROOT / "evidence", work / "evidence")
+            copy_project(work)
             path = work / "holdpoint" / file
             src = path.read_text(encoding="utf-8").replace("\r\n", "\n")
             if src.count(old) != 1:

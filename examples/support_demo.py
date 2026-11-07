@@ -20,13 +20,13 @@ ROOT = HERE.parent
 
 
 class Ticket:
-    def __init__(self, tmp, env, name):
+    def __init__(self, tmp, env, name, policy=HERE / "shop_policy.yaml", server=HERE / "shop_server.py"):
         self.state, self.ledger, self.env = str(Path(tmp) / name / "state"), Path(tmp) / name / "ledger.json", env
         self.ledger.parent.mkdir(parents=True)
         request = self.ledger.parent / "request.txt"
-        request.write_text("Handle this support ticket.", encoding="utf-8")
-        self.args = ["-m", "holdpoint.proxy", "--policy", str(HERE / "shop_policy.yaml"), "--state-dir", self.state,
-                     "--intent-file", str(request), "--", sys.executable, str(HERE / "shop_server.py"), str(self.ledger)]
+        request.write_text("Handle this task.", encoding="utf-8")
+        self.args = ["-m", "holdpoint.proxy", "--policy", str(policy), "--state-dir", self.state,
+                     "--intent-file", str(request), "--", sys.executable, str(server), str(self.ledger)]
 
     def client(self):
         return Client(StdioTransport(sys.executable, self.args, env=self.env, cwd=str(ROOT)))

@@ -61,6 +61,14 @@ T-105: the payment gateway keeps failing, and the agent keeps trying
 
 That output is shortened. The tickets come from an earlier project, [sentinel-agent](https://github.com/Chirag6722/sentinel-agent).
 
+`python examples/purchase_demo.py` does the same for an agent placing purchase orders. It includes a split order and an order that timed out but went through.
+
+Prove a limit for every possible call, not just the ones a test tried. If you loosen a rule, you get the exact call that escapes. It covers the rules as written, not whether an agent is safe. [How it works and what it assumes](docs/PROVE.md).
+
+```bash
+holdpoint prove examples/shop_policy.yaml --tool issue_refund --never "amount > 500" --even-with-approval
+```
+
 Then try to break it:
 
 ```bash

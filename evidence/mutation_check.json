@@ -52,6 +52,14 @@
   "status": "caught"
  },
  {
+  "mutant": "large negative passes the total",
+  "status": "caught"
+ },
+ {
+  "mutant": "negative amount lowers the total",
+  "status": "caught"
+ },
+ {
   "mutant": "session total not counted",
   "status": "caught"
  },
@@ -201,6 +209,58 @@
  },
  {
   "mutant": "screen answers any host",
+  "status": "caught"
+ },
+ {
+  "mutant": "proof proves everything",
+  "status": "caught"
+ },
+ {
+  "mutant": "model ignores its limits",
+  "status": "caught"
+ },
+ {
+  "mutant": "model lists no allowed values",
+  "status": "caught"
+ },
+ {
+  "mutant": "model ignores large negatives",
+  "status": "caught"
+ },
+ {
+  "mutant": "model ignores the session total",
+  "status": "caught"
+ },
+ {
+  "mutant": "model lets a person label run",
+  "status": "caught"
+ },
+ {
+  "mutant": "plain person label runs in the model",
+  "status": "caught"
+ },
+ {
+  "mutant": "approval skips person rules wrongly",
+  "status": "caught"
+ },
+ {
+  "mutant": "approval ignores deny total",
+  "status": "caught"
+ },
+ {
+  "mutant": "booleans treated as numbers",
+  "status": "caught"
+ },
+ {
+  "mutant": "claim direction flipped",
+  "status": "caught"
+ },
+ {
+  "mutant": "list claim flipped",
+  "status": "caught"
+ },
+ {
+  "mutant": "prove exit code always ok",
   "status": "caught"
  },
  {

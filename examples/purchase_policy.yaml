@@ -1,0 +1,9 @@
+# Routine orders run on their own. Larger ones wait for a person. Very large ones are refused.
+list_suppliers: lookup
+place_order:
+  label: auto
+  rules:
+    - {arg: amount, over: 50000, then: deny}
+    - {arg: amount, over: 5000, then: person}
+    - {arg: supplier, not_in: [Northline Bearings, Kestrel Valves], then: deny}
+  session_total: {arg: amount, over: 20000, then: person}
