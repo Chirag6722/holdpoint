@@ -56,6 +56,7 @@ python bench/analyse_dev.py evidence/heldout.csv
 | `evidence/heldout.csv` | Every held-out run |
 | `evidence/rounds/` | Development tuning rounds |
 | `evidence/injection_suite.json` | Every attack and reviewer verdict |
+| `evidence/adaptive_attack.json` | Every adaptive attack and reply; run with `bench/adaptive_attack.py` |
 | `evidence/mutation_check.json` | Each protection removed, and whether a test noticed |
 | `evidence/spike_all131_linux.json` | Scripted replay of all operational pairs |
 | `evidence/m0-verification.md` | Facts checked, run log and corrections |

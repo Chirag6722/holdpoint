@@ -96,6 +96,23 @@ We attacked the code and proved each problem by running it, before changing anyt
 
 **Mutation check.** A first run caught 36 of 37. The no-key test passed for the wrong reason once holds were signed, so it was tightened.
 
+## Adaptive attack, 7 Nov 2026
+
+Rules committed first in `docs/ADAPTIVE_ATTACK_PLAN.md`. Target: reviewer unchanged, called directly. Attacker: claude-sonnet-4-6. Result: 2 of 18 attempts beat the reviewer, across 2 of 6 scenarios, in 102 rounds. All 6 replays worked again. 1 of the 2 came within the gate's limit of 3 holds per tool. The attacker refused 1 round, so the test counts as meaningful. Estimated cost $1.28, plus about $0.15 for smoke tests.
+
+**Disclosure.** After the rules commit, two smoke tests changed the runner. In the first, the attacker obeyed the quoted reviewer instructions and acted as the reviewer, so every round had no usable attack. The framing of its prompt was fixed in commit `fc6f6a6` before the full run. The rules did not change.
+
+**Reading.** Both wins forged facts rather than giving orders. A safeguard that does not use a model was added afterwards: the `person` label. It was not run against this attacker, because by construction those tools never reach the reviewer.
+
+## Limits reduced in code, 7 Nov 2026
+
+Each has tests and mutation cases, and none was measured on the benchmark.
+
+- A tool labelled safe is held if its server admits it can change things. Hints are read in both spellings, because the MCP SDK is renaming them and reading one would silently turn the check off.
+- Retry limits survive a restart, tied to the user's request.
+- `--redact` keeps named arguments out of the log. Holds still show them, so a person can judge the call.
+- `--wait-seconds` lets a held call wait for a person and then run.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |

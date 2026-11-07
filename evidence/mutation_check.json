@@ -52,6 +52,46 @@
   "status": "caught"
  },
  {
+  "mutant": "person label goes to the reviewer",
+  "status": "caught"
+ },
+ {
+  "mutant": "retry limits lost on restart",
+  "status": "caught"
+ },
+ {
+  "mutant": "retry limits survive a new request",
+  "status": "caught"
+ },
+ {
+  "mutant": "server's danger admission ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "read-only false ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "only one hint spelling read",
+  "status": "caught"
+ },
+ {
+  "mutant": "redaction skipped",
+  "status": "caught"
+ },
+ {
+  "mutant": "nothing waits for a person",
+  "status": "caught"
+ },
+ {
+  "mutant": "waiting call runs without approval",
+  "status": "caught"
+ },
+ {
+  "mutant": "approval clears a changed tool",
+  "status": "caught"
+ },
+ {
   "mutant": "changed tool definitions run",
   "status": "caught"
  },

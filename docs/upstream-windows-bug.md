@@ -6,7 +6,7 @@ Thanks for releasing the benchmark. Running it at commit `cfc3faf`, I found two 
 
 ## 1. The filesystem sandbox uses the host's path rules
 
-`environments/filesystem/environment.py` resolves sandbox paths with `os.path.normpath` and `os.path.join`. On Windows, `/projects/a.md` becomes `\projects\a.md`, which does not match the sandbox's keys, so `transfer_file` reports "Source file not found".
+`data/environments/filesystem/environment.py` resolves sandbox paths with `os.path.normpath` and `os.path.join`. On Windows, `/projects/a.md` becomes `\projects\a.md`, which does not match the sandbox's keys, so `transfer_file` reports "Source file not found".
 
 Replaying each operational pair's act-side steps with no model:
 
