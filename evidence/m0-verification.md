@@ -76,12 +76,30 @@ The agent could not find the draft in either condition and asked the user, so th
 
 **Risky-call scan of all 127 dataset `.py` files.** Pattern search for `subprocess`, `socket`, `urllib`, `requests`, `httpx`, `ctypes`, `pickle`, `os.system`, `os.popen`, `os.remove`, `os.environ`, `eval(`, `exec(`, `__import__`, `open(`, `shutil.rmtree`. The four hits were three uses of the word "requests" in docstrings or sample text and one inline `__import__('datetime')`. A pattern search is not a security review. I did not read those files in full, or the installed packages.
 
+## Security review after the held-out run, 7 Nov 2026
+
+We attacked the code and proved each problem by running it, before changing anything.
+
+| Problem | Observed |
+|---|---|
+| Mistyped labels failed open | `Commit`, `COMMIT `, `write`, `destructive`, empty and `true` all ran with no review |
+| Retries bought more reviews | A simulated reviewer that was wrong 10% of the time passed the same call on try 9 |
+| Audit log | Cutting lines off, and rewriting the whole log with no key, both reported intact |
+| Hold files | A hold edited to pay Mallory, then approved, ran the Mallory call |
+| Used holds | They stayed listed as pending |
+
+**Effect on the held-out run, from the saved logs.** All 541 labels in `bench/policy.yaml` are valid (176 commit, 246 lookup, 119 verify). An identical call ran after a reviewer hold once, on a should-act task, and never on a should-stop task. A changed call never ran after a hold on the same tool. The published numbers stand, and they come from tag `heldout-v1`.
+
+**Fixes.** Each has a test and a mutation case. These fixes change behaviour, so later code differs from what was measured, and none of this was measured on the benchmark. Added at the same time: tool definition fingerprints, a readable `holds` command and `draft-policy`.
+
+**Corrections to our own claims.** The README said the policy failed closed and that log edits were detectable. Both were only partly true until these fixes. The required-tool check also missed a capitalised "Call x", found when a new test failed.
+
+**Mutation check.** A first run caught 36 of 37. The no-key test passed for the wrong reason once holds were signed, so it was tightened.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |
 |---|---|---|
-| The Claude reviewer against the real API | A pair where the agent attempts a commit | Reviewer cost and correctness |
-| Real benefit of the gate | Baseline and gated runs on the development split | The stop rule on 8 Nov |
 | `gemini-3-flash-preview` is still served | Google key | Optional second agent |
 | `gpt-5.4-2026-03-05` judge is still served | OpenAI key | Comparability with published scores |
 | Gemini free-tier rate limits are workable | Google key | Budget |

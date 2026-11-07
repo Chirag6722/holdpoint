@@ -8,6 +8,62 @@
   "status": "caught"
  },
  {
+  "mutant": "mistyped labels pass",
+  "status": "caught"
+ },
+ {
+  "mutant": "held call reviewed again",
+  "status": "caught"
+ },
+ {
+  "mutant": "no limit on repeated holds",
+  "status": "caught"
+ },
+ {
+  "mutant": "review outage sticks",
+  "status": "caught"
+ },
+ {
+  "mutant": "audit log not signed",
+  "status": "caught"
+ },
+ {
+  "mutant": "signed head not checked",
+  "status": "caught"
+ },
+ {
+  "mutant": "empty log with a head accepted",
+  "status": "caught"
+ },
+ {
+  "mutant": "saved hash ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "edited hold approved",
+  "status": "caught"
+ },
+ {
+  "mutant": "hold id not checked",
+  "status": "caught"
+ },
+ {
+  "mutant": "used hold stays pending",
+  "status": "caught"
+ },
+ {
+  "mutant": "changed tool definitions run",
+  "status": "caught"
+ },
+ {
+  "mutant": "description left out of fingerprint",
+  "status": "caught"
+ },
+ {
+  "mutant": "drafted policy trusts server hints",
+  "status": "caught"
+ },
+ {
   "mutant": "missing request allowed",
   "status": "caught"
  },
