@@ -11,14 +11,23 @@ runs, out = Path(sys.argv[1]), sys.argv[2]
 result = {}
 for side in ("act", "abstain"):
     held = allowed = tasks_with_hold = tasks_with_commit = 0
+    causes = {"reviewer": 0, "failed_tool_check": 0, "required_tool_check": 0, "other": 0}
     for path in runs.glob(f"*.{side}.*/audit.jsonl"):
         events = [json.loads(line)["event"] for line in path.read_text(encoding="utf-8").splitlines()]
         gated = [e for e in events if e["by"] in ("reviewer", "checks", "gate")]
         held += sum(not e["allow"] for e in gated)
+        for e in gated:
+            if not e["allow"]:
+                reason = e.get("reason", "")
+                cause = ("failed_tool_check" if "never recovered" in reason
+                         else "required_tool_check" if "requires a tool" in reason
+                         else "reviewer" if e["by"] == "reviewer" else "other")
+                causes[cause] += 1
         allowed += sum(e["allow"] for e in gated)
         tasks_with_commit += bool(gated)
         tasks_with_hold += any(not e["allow"] for e in gated)
     result[side] = {"commit_attempts": held + allowed, "held": held, "allowed_without_a_person": allowed,
-                    "tasks_with_a_commit_attempt": tasks_with_commit, "tasks_with_a_hold": tasks_with_hold}
+                    "tasks_with_a_commit_attempt": tasks_with_commit, "tasks_with_a_hold": tasks_with_hold,
+                    "holds_by_cause": causes}
 Path(out).write_text(json.dumps(result, indent=1), encoding="utf-8", newline="\n")
 print(json.dumps(result, indent=1))

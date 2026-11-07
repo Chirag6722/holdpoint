@@ -4,13 +4,25 @@
   "held": 26,
   "allowed_without_a_person": 68,
   "tasks_with_a_commit_attempt": 69,
-  "tasks_with_a_hold": 19
+  "tasks_with_a_hold": 19,
+  "holds_by_cause": {
+   "reviewer": 17,
+   "failed_tool_check": 7,
+   "required_tool_check": 2,
+   "other": 0
+  }
  },
  "abstain": {
   "commit_attempts": 47,
   "held": 38,
   "allowed_without_a_person": 9,
   "tasks_with_a_commit_attempt": 29,
-  "tasks_with_a_hold": 22
+  "tasks_with_a_hold": 22,
+  "holds_by_cause": {
+   "reviewer": 29,
+   "failed_tool_check": 7,
+   "required_tool_check": 2,
+   "other": 0
+  }
  }
 }
