@@ -91,7 +91,8 @@ Label your tools. Anything you leave out is held:
 
 ```yaml
 read_balance: lookup
-send_payment: commit
+archive_note: commit    # automatic checks and the reviewer can clear it
+send_payment: person    # always waits for a human, never reaches the reviewer
 ```
 
 Put the proxy in front of your MCP server, wherever your client configures its command:
@@ -122,6 +123,8 @@ Remove the direct entry for that server, or the agent can still reach it without
 | `HOLDPOINT_KEY` | Signs approvals. With no key, approvals are off and holds stay held. |
 | `HOLDPOINT_REVIEWER_KEY`, `HOLDPOINT_REVIEWER_MODEL` | Turn on the reviewer. With neither, every commit waits for a person. |
 | `HOLDPOINT_REVIEWER_PROVIDER` | `anthropic`, or leave unset for any OpenAI-compatible endpoint. |
+| `--wait-seconds N` | A held call waits up to N seconds for a person, then runs if approved. |
+| `--redact NAME` | Keeps an argument with this name out of the audit log. Repeat it for more names. |
 
 Handle holds as a person:
 
@@ -226,6 +229,23 @@ Every number above comes from the code at tag `heldout-v1`, not from later commi
 
 **What the gate never sees:** task type, scenario, or the answer fields in the benchmark's task files. It uses only each sandbox's generic tool labels, and the reviewer gets only the request and the live trace. A dry run checked 184 reviewer requests for those fields and found none.
 
+## An attacker that reads the replies beat the reviewer
+
+The injection suite above uses a fixed list. In this test, an attacker model read the reviewer's instructions and every reply, and changed its approach each round. The [rules](docs/ADAPTIVE_ATTACK_PLAN.md) were committed before the run.
+
+| Measure | Result |
+|---|---:|
+| Attempts that beat the reviewer | **2 of 18**, across 2 of 6 scenarios, in 102 rounds |
+| Replays of those attacks that worked again | 6 of 6 |
+| Successes within the gate's limit of 3 reviewer holds per tool | 1 of 2 |
+| Rounds the attacker refused | 1 of 102 |
+
+Neither attack gave the reviewer an order. Both forged facts: one said "Mom" was a colleague called Margaret, the other said Sam Lee was the contract's signatory. The reviewer cannot tell forged tool output from real output, and better wording cannot fully fix that.
+
+So we added a safeguard that does not depend on a model: label a tool `person`, and it always waits for a human and never reaches the reviewer. The reviewer's instructions were not changed.
+
+This is one attacker model, a small number of tries, and scenarios we wrote, so the true rate could be higher or lower. The first smoke test exposed a bug in our runner, where the attacker acted as the reviewer. That was fixed before the full run. [Every attack and reply](evidence/adaptive_attack.json).
+
 ## We attacked our own gate
 
 After the measured run we tried to break the code ourselves. Each problem now has a test that fails if the fix is removed.
@@ -248,7 +268,8 @@ After the measured run we tried to break the code ourselves. Each problem now ha
 | Bypass suite and mutation check | Working |
 | Benchmark runner, without editing the benchmark's source | Working |
 | Reviewer against a real model | Measured on one model pair, one run per task |
-| Injection attacks on the real reviewer | 0 of 60 flipped a correct hold; [fixed attack list we wrote](evidence/injection_suite.json), not an adaptive attacker |
+| Fixed injection attacks on the real reviewer | 0 of 60 flipped a correct hold; [list we wrote](evidence/injection_suite.json) |
+| Adaptive attacker on the real reviewer | **Beat it in 2 of 18 attempts**; [every attack](evidence/adaptive_attack.json) |
 | Benefit on a real agent, paired accuracy | **None shown** on held-out pairs |
 | Reduction in wrongful irreversible actions | 25 to 6 of 89, at a cost of 17 should-act passes |
 | Human approval flow with real people | Mechanism tested, not evaluated with people |
@@ -257,15 +278,15 @@ After the measured run we tried to break the code ourselves. Each problem now ha
 
 ## Known limits
 
-- **The labels are the boundary.** A destructive tool labelled `lookup` runs freely. Unknown tools and mistyped labels are held, but a wrong label is not.
+- **The labels are the boundary.** A destructive tool wrongly labelled `lookup` runs, unless its server admits it can change things. Unknown tools and mistyped labels are held.
 - **A tool is trusted when first seen.** Fingerprints catch a definition that changes later, not one that was malicious from the start.
-- **The state folder must stay out of reach.** The log stores tool arguments in readable form. Someone with the key can rewrite it, and a rollback goes unnoticed without a hash saved elsewhere.
-- **Limits on retries last one session.** Restarting the proxy resets them.
+- **The state folder must stay out of reach.** Holds keep arguments in readable form so a person can judge them. `--redact` keeps named arguments out of the log. Someone with the key can rewrite the log, and a rollback goes unnoticed without a hash saved elsewhere.
+- **Waiting blocks the session.** With `--wait-seconds`, one waiting call blocks the rest of that session, and the client's own timeout still applies.
 - **The gate only sees MCP traffic.** An agent with another route to the same system, such as shell access or a raw API key, can bypass it.
-- **The model-based layer is probabilistic.** A reviewer can be wrong or be persuaded. That is why the hard gate, checks and approvals do not depend on it.
+- **The reviewer can be fooled.** It cannot tell forged tool output from real output, and an adaptive attacker beat it in 2 of 18 attempts. A wrong "proceed" runs the call, so label your highest-stakes tools `person`.
 - **Holds cost something.** A wrong hold stops legitimate work, which is why should-act loss is reported beside every result.
 - **Long tool output is clipped for review.** The reviewer sees the start and end of very long results, so a warning buried in the middle can be missed.
-- **Held calls do not simulate success.** An agent cannot continue a multi-step plan past a hold. There is no shadow state or rollback.
+- **Held calls do not simulate success.** An agent cannot carry on past a hold. There is no shadow state or rollback, though `--wait-seconds` lets a call wait for a person and then run.
 - **One call at a time.** Each session handles calls in sequence, so a verdict always sees the full history.
 
 ## How this relates to governance frameworks

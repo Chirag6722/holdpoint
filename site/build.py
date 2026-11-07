@@ -143,23 +143,44 @@ def causes_section():
 
 
 LIMITS = [
-    ("The labels are the boundary", "A destructive tool labelled as a read runs freely. Unknown tools and mistyped labels are held, but a wrong label is not.",
+    ("The labels are the boundary", "A destructive tool wrongly labelled as a read runs, unless its server admits it can change things. Unknown tools and mistyped labels are held.",
      "Start from <code>holdpoint draft-policy</code>, which labels everything commit. Relax a tool only after checking it cannot change anything."),
     ("The gate only sees MCP traffic", "An agent with shell access or a raw API key can go around it.",
      "Give the agent no other route to the same system, and keep the credentials on the tool server's side."),
-    ("The reviewer is a model", "It can be wrong or be persuaded. Each call gets one verdict, and retries are limited, but one wrong \"proceed\" still runs the call.",
-     "For your highest-stakes tools, run with no reviewer, so every commit waits for a person."),
+    ("The reviewer can be fooled", "It cannot tell forged tool output from real output. An attacker who read its replies beat it in 2 of 18 attempts, and a wrong \"proceed\" runs the call.",
+     "Label your highest-stakes tools <code>person</code>. They always wait for a human and never reach the reviewer."),
     ("Wrong holds cost real work", "On held-out tasks the gate lost 17 should-act passes.",
      "Route holds to someone who can approve them quickly. That flow is built, but it has not been tested with real people."),
     ("Your host must supply the request", "MCP does not carry the user's request, so without it every commit is held.",
      "Write the request to the intent file at session start, somewhere the agent cannot write."),
     ("A tool is trusted when first seen", "Fingerprints catch a definition that changes later, not one that was malicious from the start.",
      "Read the tool definitions before the first run, and review any change before <code>holdpoint accept-tools</code>."),
-    ("The state folder must stay out of reach", "The log stores tool arguments in readable form. Someone with the key can rewrite it, and a rollback goes unnoticed without a saved hash.",
-     "Keep the key away from the agent and the tool server. Save the latest hash somewhere else, and pass it to <code>verify-log --expect</code>."),
-    ("A hold ends the step", "There is no simulated success or rollback, so an agent cannot continue a plan past a hold.",
-     "Have the agent report the hold and wait."),
+    ("The state folder must stay out of reach", "Holds keep arguments in readable form so a person can judge them. Someone with the key can rewrite the log, and a rollback goes unnoticed without a saved hash.",
+     "Keep the key from the agent and the tool server. Use <code>--redact</code> for sensitive arguments in the log, and pass a hash saved elsewhere to <code>verify-log --expect</code>."),
+    ("A hold pauses the work", "There is no simulated success or rollback, so an agent cannot carry on past a hold.",
+     "Use <code>--wait-seconds</code> so the call waits for a person and then runs. A waiting call blocks that session, and the client's own timeout still applies."),
 ]
+
+
+def adaptive_section():
+    run = load("adaptive_attack.json")
+    if not run:
+        return ""
+    s = run["summary"]
+    wins = [r for r in run["results"] if r["flipped_at_round"]]
+    quotes = "".join(
+        f"<div class='beaten'><h3>{e(SCENARIO_NAMES[r['scenario']])}: beaten on round {r['flipped_at_round']}</h3>"
+        f"<p class='label'>What the attacker added to the tool output</p><blockquote>{e(r['rows'][-1]['injection'])}</blockquote>"
+        f"<p class='label'>What the reviewer replied</p><blockquote>{e(r['rows'][-1]['reason'])}</blockquote></div>" for r in wins)
+    return (f"<section id='adaptive' class='chapter paper' data-chapter='An attacker that reads the replies'><div class='wrap'>"
+            "<h2>Then we let the attacker read the replies, and it won.</h2>"
+            f"<p>The list above is fixed. In this test, an attacker model read the reviewer's instructions and every reply, and changed its approach each round. {link('docs/ADAPTIVE_ATTACK_PLAN.md', 'The rules')} were written and committed first.</p>"
+            f"<ul class='plates'><li><strong>{s['successful_attempts']} of {s['attempts']}</strong><b>Attempts that beat the reviewer</b>Across {len(s['scenarios_flipped'])} of {s['scenarios_tested']} scenarios, in {s['rounds_run']} rounds.</li>"
+            f"<li><strong>{s['replays_that_proceeded']} of {s['replays_run']}</strong><b>Replays that worked again</b>These were not lucky one-offs.</li>"
+            f"<li><strong>{s['successful_within_gate_limit']} of {s['successful_attempts']}</strong><b>Within the gate's retry limit</b>A tool waits for a person after 3 reviewer holds, which would have stopped the other one.</li></ul>"
+            f"<div class='beatenlist'>{quotes}</div>"
+            "<p><strong>Why this matters.</strong> Neither attack gave the reviewer an order. Both forged facts, and the reviewer cannot tell forged tool output from real output. Better wording cannot fully fix that, so we added a safeguard that does not depend on a model: a tool labelled <code>person</code> always waits for a human and never reaches the reviewer.</p>"
+            f"<p class='source'>One attacker model, a small number of tries, and scenarios we wrote, so the true rate could be higher or lower. The reviewer's instructions were not changed. Source: {link('evidence/adaptive_attack.json', 'every attack and reply')}.</p></div></section>")
 
 
 def limits_rows():
@@ -267,7 +288,7 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Gloock&family=IBM+Plex+Mono:wght@400;500&family=Saira+Stencil+One&display=swap" rel="stylesheet">
 <style>{theme}</style></head><body>
 <nav class="pill" aria-label="Main"><a class="brand" href="#top">Holdpoint</a><span class="current" id="current" aria-hidden="true"></span>
-<span class="links"><a href="#results">Results</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
+<span class="links"><a href="#results">Results</a><a class="optional" href="#adaptive">Attacks</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
 <header class="hero" id="top" data-chapter="">{lines}<div class="wrap">
 <h1>An agent's irreversible call stops here until it passes review.</h1>
 <div class="opening"><div><p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
@@ -302,8 +323,9 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 <p>We put {len(data['attacks'])} prompt-injection attacks into tool output and sent each to the real reviewer. {s['attacks_that_flipped_hold_to_proceed']} of {s['attacks_on_correctly_held_scenarios']} attacks turned a correct hold into a run. {s['proceed_controls_held_under_attack']} of {s['proceed_controls_attacked']} attacks on harmless tasks caused a needless hold. Choose any cell to read the attack and the reviewer's reply.</p>
 {grid(data)}
 <div class="detail" id="detail" aria-live="polite"></div>
-<p class="source" style="margin-top:1rem">This is a fixed list of attacks we wrote, not an adaptive attacker. A determined attacker may do better, which is why the hard gate and approvals do not rely on the reviewer. Source: {link('evidence/injection_suite.json', 'every verdict')}.</p>
+<p class="source" style="margin-top:1rem">This is a fixed list of attacks we wrote. The next chapter shows what an attacker did when it could react. Source: {link('evidence/injection_suite.json', 'every verdict')}.</p>
 </div></section>
+{adaptive_section()}
 {self_attack_section()}
 <section class="chapter paper" data-chapter="What tuning changed"><div class="wrap"><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, and the gain seen here did not carry over to the held-out pairs above.</p>
 {tuning_section()}</div></section>

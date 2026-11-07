@@ -27,6 +27,8 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 | Control the agent | Replay an approval, or spend it in parallel | Runs once only |
 | Control the agent | Retry a held call until the reviewer says yes | Stays held; reviews are limited per tool |
 | Control tool output | Inject instructions aimed at the reviewer | Quoted as data. 0 of 60 attacks flipped a correct hold, on a fixed list we wrote |
+| Control tool output and read replies | Forge facts until the reviewer agrees | **Not stopped by the reviewer: 2 of 18 attempts won.** A tool labelled `person` never reaches the reviewer |
+| Control the tool server | Label a dangerous tool safe, while the server admits it is dangerous | Held |
 | Control the tool server | Change a tool's definition after first use | Held until a person accepts it |
 | Break the reviewer | Timeout, failure or malformed reply | Held |
 | Compromise the reviewer | Always answer proceed | Automatic checks still apply, but other wrong calls would run |
@@ -36,14 +38,13 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 ## What it does not stop
 
 - **A route around MCP.** An agent with shell access or a raw API key can reach the system directly. Remove that route.
-- **A wrong label.** A destructive tool labelled `lookup` runs freely.
-- **A wrong "proceed" from the reviewer.** Each one runs a real call. For your highest-stakes tools, run with no reviewer.
+- **A wrong label.** A destructive tool labelled `lookup` runs, unless its server admits it can change things.
+- **A wrong "proceed" from the reviewer.** Each one runs a real call, and forged tool output can cause one. Label your highest-stakes tools `person`.
 - **A person approving something harmful.** Approval binds the exact call, not good judgement.
 - **A stolen signing key.** With it, an attacker can approve calls and rewrite the log.
 - **A rollback of the whole state folder.** This goes unnoticed unless you pass a hash saved elsewhere to `verify-log --expect`.
 - **A tool that was malicious when first seen.** Fingerprints only catch later changes.
 - **Harm from allowed reads.** Reads pass straight through, so a read can still expose data to the agent.
-- **Restarts resetting retry limits.** Limits on repeated review last one proxy session.
 
 ## How far this was tested
 

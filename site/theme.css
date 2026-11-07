@@ -126,6 +126,13 @@ td code,th code{white-space:nowrap}
 .detail dt{font-weight:600}
 .detail dd{margin:0;overflow-wrap:anywhere}
 
+/* Adaptive attack */
+.beatenlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(16px,3vw,40px);margin:clamp(20px,3vw,40px) 0}
+.beaten{background:var(--sheet);border-top:3px solid var(--fail);padding:clamp(16px,2vw,24px)}
+.beaten h3{font-size:1.5rem;line-height:1.15;margin-bottom:.8rem}
+.beaten .label{font-weight:600;margin:.8rem 0 .25rem}
+.beaten blockquote{margin:0;font:400 .95rem/1.5 var(--mono);overflow-wrap:anywhere}
+
 /* Limits */
 .limits{margin-top:1.5rem;border-top:3px solid var(--ink)}
 .limithead>div,.limit{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,4fr) minmax(0,5fr);gap:clamp(12px,2vw,32px);padding:1rem 0;border-bottom:1px solid var(--line)}
@@ -143,7 +150,7 @@ td code,th code{white-space:nowrap}
   .pill{padding-left:18px}
   .links{gap:12px}
   .links .optional{display:none}
-  .plates,.proof,.demo,.opening{grid-template-columns:minmax(0,1fr)}
+  .plates,.proof,.demo,.opening,.beatenlist{grid-template-columns:minmax(0,1fr)}
   .ledger{order:-1}
   .js .steps li.waiting{display:none}
   .plates li,.plates li+li{padding:18px 0;border-left:0;border-bottom:1px solid var(--line)}
