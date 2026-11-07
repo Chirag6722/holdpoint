@@ -13,13 +13,14 @@ import pytest
 import yaml
 from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 from holdpoint.approval import Approvals, call_hash
 from holdpoint.audit import GENESIS, AuditLog, _digest, latest_hash, verify
 from holdpoint.cli import draft_policy, format_holds
 from holdpoint.cli import main as cli_main
 from holdpoint.gate import Gate
-from holdpoint.proxy import GateMiddleware, build, downstream_env
+from holdpoint.proxy import GateMiddleware, admits_it_changes_things, build, downstream_env
 from holdpoint.reviewer import build_messages, parse_verdict
 
 KEY = b"test-only-key"
@@ -657,6 +658,150 @@ def test_negative_control_unchanged_definition_runs_across_sessions(tmp_path):
             return await call(c, "read_account", account="1")
     run(go())
     run(go())
+
+
+def test_person_label_never_reaches_the_reviewer_and_a_person_can_still_approve(tmp_path):
+    approvals = Approvals(tmp_path, KEY)
+    review, calls = counting_reviewer([True])
+    gate = Gate({"send_payment": "person"}, approvals, review, "Pay Ann")
+    assert gate.decide("send_payment", PAY, {}, []).allow is False
+    assert calls == []
+    approvals.approve(approvals.record_hold("send_payment", PAY, "held"), 60)
+    assert gate.decide("send_payment", PAY, {}, []).by == "human"
+
+
+def test_restarting_the_proxy_does_not_buy_more_reviews(tmp_path):
+    review, calls = counting_reviewer([False, True])
+    state = tmp_path / "review_holds.json"
+    assert Gate(POLICY, None, review, "Pay Ann", review_state=state).decide("send_payment", PAY, {}, []).allow is False
+    assert Gate(POLICY, None, review, "Pay Ann", review_state=state).decide("send_payment", PAY, {}, []).allow is False
+    assert len(calls) == 1
+
+
+def test_negative_control_a_new_request_starts_with_fresh_reviews(tmp_path):
+    review, calls = counting_reviewer([False, True])
+    state = tmp_path / "review_holds.json"
+    Gate(POLICY, None, review, "Pay Ann", review_state=state).decide("send_payment", PAY, {}, [])
+    assert Gate(POLICY, None, review, "Pay Bea", review_state=state).decide("send_payment", PAY, {}, []).allow is True
+    assert len(calls) == 2
+
+
+def server_with_hints(**hints):
+    mcp = FastMCP("hinted")
+
+    def wipe() -> str:
+        return "wiped"
+    mcp.tool(wipe, annotations=ToolAnnotations(**hints))
+    return mcp
+
+
+@pytest.mark.parametrize("annotations", [SimpleNamespace(destructiveHint=True), SimpleNamespace(destructive_hint=True),
+                                         SimpleNamespace(readOnlyHint=False), SimpleNamespace(read_only_hint=False)])
+def test_danger_admission_is_read_in_either_spelling(annotations):
+    assert admits_it_changes_things(SimpleNamespace(annotations=annotations)) is True
+
+
+@pytest.mark.parametrize("annotations", [None, SimpleNamespace(), SimpleNamespace(read_only_hint=True, destructive_hint=None),
+                                         SimpleNamespace(destructiveHint=False)])
+def test_negative_control_no_admission_means_no_conflict(annotations):
+    assert admits_it_changes_things(SimpleNamespace(annotations=annotations)) is False
+
+
+@pytest.mark.parametrize("hints", [{"destructiveHint": True}, {"readOnlyHint": False}])
+def test_tool_labelled_safe_that_admits_it_changes_things_is_held(tmp_path, hints):
+    async def go():
+        async with Client(build(server_with_hints(**hints), {"wipe": "lookup"}, tmp_path)) as c:
+            with pytest.raises(ToolError, match="can change things"):
+                await call(c, "wipe")
+    run(go())
+
+
+def test_negative_control_read_only_claim_does_not_relax_a_commit_label(tmp_path):
+    async def go():
+        async with Client(build(server_with_hints(readOnlyHint=True), {"wipe": "commit"}, tmp_path)) as c:
+            with pytest.raises(ToolError, match="needs human approval|not provided"):
+                await call(c, "wipe")
+    run(go())
+
+
+def test_negative_control_safe_label_with_read_only_hint_runs(tmp_path):
+    async def go():
+        async with Client(build(server_with_hints(readOnlyHint=True), {"wipe": "lookup"}, tmp_path)) as c:
+            await call(c, "wipe")
+    run(go())
+
+
+def test_redacted_arguments_stay_out_of_the_log_but_the_person_still_sees_them(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, POLICY, tmp_path, "Pay Ann", None, frozenset(), KEY, frozenset({"to"}))
+
+    async def go():
+        async with Client(proxy) as c:
+            with pytest.raises(ToolError):
+                await call(c, "send_payment", to="SECRET-ACCOUNT", amount=10)
+    run(go())
+    log = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    assert "SECRET-ACCOUNT" not in log and "[redacted]" in log
+    assert verify(tmp_path / "audit.jsonl", KEY) == (True, 1)
+    assert Approvals(tmp_path, KEY).list_holds()[0]["args"]["to"] == "SECRET-ACCOUNT"
+
+
+def test_held_call_waits_and_runs_once_when_a_person_approves(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, POLICY, tmp_path, "Pay Ann", None, frozenset(), KEY, wait_seconds=10)
+    approvals = Approvals(tmp_path, KEY)
+
+    async def go():
+        async with Client(proxy) as c:
+            pending = asyncio.create_task(call(c, "send_payment", **PAY))
+            while not approvals.list_holds():
+                await asyncio.sleep(0.05)
+            assert backend.executed == []
+            approvals.approve(approvals.list_holds()[0]["hold_id"], 60)
+            await pending
+    run(go())
+    assert backend.executed == [("send_payment", "Ann", 10)]
+    assert verify(tmp_path / "audit.jsonl", KEY) == (True, 2)
+
+
+def test_waiting_call_is_still_held_if_nobody_approves(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, POLICY, tmp_path, "Pay Ann", None, frozenset(), KEY, wait_seconds=0.3)
+
+    async def go():
+        async with Client(proxy) as c:
+            with pytest.raises(ToolError, match="HELD"):
+                await call(c, "send_payment", **PAY)
+    run(go())
+    assert backend.executed == []
+
+
+def test_waiting_call_is_not_released_by_an_approval_for_a_different_call(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, POLICY, tmp_path, "Pay Ann", None, frozenset(), KEY, wait_seconds=0.6)
+    approvals = Approvals(tmp_path, KEY)
+    approvals.approve(approvals.record_hold("send_payment", {"to": "Bob", "amount": 1}, "held"), 60)
+
+    async def go():
+        async with Client(proxy) as c:
+            with pytest.raises(ToolError, match="HELD"):
+                await call(c, "send_payment", **PAY)
+    run(go())
+    assert backend.executed == []
+
+
+def test_changed_tool_cannot_be_cleared_by_a_waiting_approval(tmp_path):
+    policy = {"read_account": "commit"}
+
+    async def go(description, wait):
+        async with Client(build(server_with_tool(description), policy, tmp_path, None, None, frozenset(), KEY, wait_seconds=wait)) as c:
+            return await call(c, "read_account", account="1")
+    approvals = Approvals(tmp_path, KEY)
+    approvals.approve(approvals.record_hold("read_account", {"account": "1"}, "held"), 60)
+    run(go("Before.", 0))  # A valid approval runs the call, and pins the definition.
+    approvals.approve(approvals.record_hold("read_account", {"account": "1"}, "held"), 60)
+    with pytest.raises(ToolError, match="definition changed"):
+        run(go("After.", 0.3))
 
 
 def cli_run(state, *args):

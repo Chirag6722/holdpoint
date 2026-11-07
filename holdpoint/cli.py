@@ -12,7 +12,7 @@ from fastmcp.client.transports import StdioTransport
 
 from .approval import Approvals
 from .audit import latest_hash, verify
-from .proxy import downstream_env
+from .proxy import downstream_env, hint
 
 
 def format_holds(holds: list[dict]) -> str:
@@ -30,11 +30,12 @@ def format_holds(holds: list[dict]) -> str:
 
 def draft_policy(tools) -> str:
     """Every tool starts as commit. Server hints are untrusted, so they only inform the person editing the file."""
-    lines = ["# Change a tool to lookup or verify only after checking that it cannot change anything."]
+    lines = ["# Change a tool to lookup or verify only after checking that it cannot change anything.",
+             "# Change a tool to person if it must always wait for a human and never rely on the reviewer."]
     for t in sorted(tools, key=lambda t: t.name):
-        read_only = getattr(getattr(t, "annotations", None), "readOnlyHint", None)
-        hint = "  # the server claims this is read-only; check it" if read_only else ""
-        lines.append(f"{json.dumps(t.name)}: commit{hint}")
+        read_only = hint(getattr(t, "annotations", None), "read_only_hint", "readOnlyHint")
+        note = "  # the server claims this is read-only; check it" if read_only else ""
+        lines.append(f"{json.dumps(t.name)}: commit{note}")
     return "\n".join(lines)
 
 
