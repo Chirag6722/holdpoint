@@ -12,6 +12,7 @@
   --gutter:clamp(16px,4vw,56px);--chapter:clamp(56px,9vw,128px);--measure:68ch;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{margin:0;background:var(--black);color:var(--ink);font:400 1.0625rem/1.55 var(--body)}
 h1,h2,h3{font-family:var(--display);font-weight:400;margin:0}
@@ -126,6 +127,32 @@ td code,th code{white-space:nowrap}
 .detail dt{font-weight:600}
 .detail dd{margin:0;overflow-wrap:anywhere}
 
+/* Break it yourself */
+.tryit{background:var(--sheet);color:var(--ink)}
+.pg-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(20px,3vw,44px);margin-top:1.5rem}
+.pg-grid label{display:block;font-weight:600;margin:.9rem 0 .3rem}
+.pg-grid label:first-child{margin-top:0}
+.pg-grid textarea,.pg-grid input,.pg-grid select{width:100%;font:400 .95rem/1.45 var(--mono);color:var(--ink);background:var(--white);border:2px solid var(--ink);padding:.55rem .65rem;border-radius:0}
+.pg-grid select{font-family:var(--body);font-size:1.05rem}
+.pg-grid textarea{resize:vertical}
+#pg-policy{min-height:15rem}
+.tryit .btn.primary,.tryit .pg-send{background:var(--ink);border-color:var(--ink);color:var(--white)}
+.tryit .pg-start{background:var(--tag);border-color:var(--tag);color:var(--black)}
+.pg-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:.9rem}
+#pg-moves{display:flex;flex-wrap:wrap;gap:8px}
+.pg-move,.pg-approve{font-size:.92rem;font-weight:500;padding:.35rem .85rem}
+.pg-approve{margin-top:.5rem}
+#pg-log{list-style:none;padding:0;margin:0}
+.pg-row{margin:0;padding:.7rem 0;border-bottom:1px solid var(--line)}
+.pg-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.pg-call{font:400 .92rem/1.4 var(--mono);overflow-wrap:anywhere;min-width:0}
+.pg-why{margin:.35rem 0 0;font-size:.95rem;color:var(--muted)}
+.mark.refused{background:var(--fail);color:var(--white)}
+.mark.error{background:var(--ink);color:var(--white)}
+.tryit .mark.ran{background:var(--ran);color:var(--white)}
+.pg-status{min-height:1.6em;font-weight:500;margin-top:.8rem}
+.pg-note{font-size:.95rem;color:var(--muted);margin-top:1.25rem}
+
 /* Adaptive attack */
 .beatenlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(16px,3vw,40px);margin:clamp(20px,3vw,40px) 0}
 .beaten{background:var(--sheet);border-top:3px solid var(--fail);padding:clamp(16px,2vw,24px)}
@@ -150,7 +177,7 @@ td code,th code{white-space:nowrap}
   .pill{padding-left:18px}
   .links{gap:12px}
   .links .optional{display:none}
-  .plates,.proof,.demo,.opening,.beatenlist{grid-template-columns:minmax(0,1fr)}
+  .plates,.proof,.demo,.opening,.beatenlist,.pg-grid{grid-template-columns:minmax(0,1fr)}
   .ledger{order:-1}
   .js .steps li.waiting{display:none}
   .plates li,.plates li+li{padding:18px 0;border-left:0;border-bottom:1px solid var(--line)}

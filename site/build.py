@@ -3,6 +3,7 @@
 Usage: python site/build.py   Writes docs/index.html for GitHub Pages. Missing results are shown as not run yet.
 """
 import csv
+import hashlib
 import html
 import json
 import sys
@@ -164,6 +165,47 @@ LIMITS = [
 ]
 
 
+PLAYGROUND_FILES = ["holdpoint/__init__.py", "holdpoint/approval.py", "holdpoint/checks.py", "holdpoint/gate.py", "holdpoint/rules.py"]
+
+
+def _text(path):
+    return (ROOT / path).read_text(encoding="utf-8").replace("\r\n", "\n")
+
+
+def playground_data():
+    """The real source files go in the page as they are, so the page cannot drift from the code."""
+    files = {name: _text(name) for name in PLAYGROUND_FILES}
+    files["playground.py"] = _text("site/playground.py")
+    presets = json.loads(_text("site/presets.json"))
+    for preset in presets:
+        preset["policy"] = _text(preset["policy_file"])
+    digest = hashlib.sha256("".join(files[name] for name in sorted(files)).encode("utf-8")).hexdigest()
+    return {"files": files, "presets": presets, "digest": digest}
+
+
+def playground_section(pg):
+    options = "".join(f"<option value='{e(p['id'])}'>{e(p['name'])}</option>" for p in pg["presets"])
+    return f"""<section id="try" class="chapter tryit" data-chapter="Break it yourself"><div class="wrap">
+<h2>Break it yourself</h2>
+<p>This runs the real gate code in your browser. Change the rules, send any call, and try to get something past it. Nothing is sent anywhere, and no key is needed.</p>
+<noscript><p><strong>This part needs JavaScript.</strong> You can run the same code with the commands further down.</p></noscript>
+<button class="btn pg-start" id="pg-start" type="button" hidden>Start the gate</button>
+<p class="pg-status" id="pg-status" role="status"></p>
+<div id="pg-work" hidden><div class="pg-grid"><div>
+<label for="pg-preset">Scenario</label><select id="pg-preset">{options}</select>
+<label for="pg-policy">Policy (edit it)</label><textarea id="pg-policy" spellcheck="false"></textarea>
+<div class="pg-actions"><button class="btn" id="pg-reset" type="button">Reset the session</button></div>
+<label for="pg-tool">Tool</label><input id="pg-tool" spellcheck="false" autocomplete="off">
+<label for="pg-args">Arguments (JSON)</label><textarea id="pg-args" rows="2" spellcheck="false"></textarea>
+<div class="pg-actions"><button class="btn pg-send" id="pg-send" type="button">Send this call</button></div>
+</div><div>
+<p class="pg-grid-title"><strong>Or try one of these moves</strong></p><div id="pg-moves"></div>
+<p style="margin-top:1.25rem"><strong>What the gate did, newest first</strong></p><ol id="pg-log" aria-live="polite"></ol>
+</div></div></div>
+<p class="pg-note">The page loads Python from jsDelivr when you press Start, and it runs {link('holdpoint/gate.py', 'gate.py')} and the files it needs, embedded unchanged. Code fingerprint: <code>{pg['digest'][:16]}</code>. No reviewer model runs here, so a plain <code>commit</code> always waits for a person, and the proxy's tool fingerprints are not part of this page. You are testing the fixed rules, not the benchmark result.</p>
+</div></section>"""
+
+
 def adaptive_section():
     run = load("adaptive_attack.json")
     if not run:
@@ -264,6 +306,9 @@ def page():
     payload = json.dumps(data).replace("</", "<\\/")
     theme = (ROOT / "site" / "theme.css").read_text(encoding="utf-8")
     script = (ROOT / "site" / "app.js").read_text(encoding="utf-8")
+    playground_script = (ROOT / "site" / "playground.js").read_text(encoding="utf-8")
+    pg = playground_data()
+    pg_payload = json.dumps(pg).replace("</", "<\\/")
     plate = """<svg class="plate" viewBox="0 0 1040 300" role="img"
 aria-label="A tool call travels from the agent along a pipe and stops at a shut valve carrying a yellow HELD tag. The pipe beyond it, to your tool, is empty.">
 <path class="pipe" d="M180 120H480"/><path class="pipe dead" d="M560 120H860"/>
@@ -290,11 +335,11 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Gloock&family=IBM+Plex+Mono:wght@400;500&family=Saira+Stencil+One&display=swap" rel="stylesheet">
 <style>{theme}</style></head><body>
 <nav class="pill" aria-label="Main"><a class="brand" href="#top">Holdpoint</a><span class="current" id="current" aria-hidden="true"></span>
-<span class="links"><a href="#results">Results</a><a class="optional" href="#adaptive">Attacks</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
+<span class="links"><a class="optional" href="#results">Results</a><a href="#try">Break it</a><a class="optional" href="#adaptive">Attacks</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
 <header class="hero" id="top" data-chapter="">{lines}<div class="wrap">
 <h1>An agent's irreversible call stops here until it passes review.</h1>
 <div class="opening"><div><p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
-<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#run">Try to break it</a></div></div>
+<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#try">Break it yourself</a></div></div>
 {plate}</div></div></header>
 <main>
 <section id="results" class="chapter paper" data-chapter="Did it work?"><div class="wrap">
@@ -319,6 +364,7 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 </ol><div class="ledger"><span>Money sent</span><strong id="sent">$10 to Ann</strong>
 <button class="btn primary js-only" id="next" type="button">Start the agent</button>
 <p class="source" id="step-status" aria-live="polite" style="margin:1rem 0 0"></p></div></div></div></section>
+{playground_section(pg)}
 {causes_section()}
 <section class="chapter night" data-chapter="Talk the reviewer out of a hold"><div class="wrap">
 <h2>Try to talk the reviewer out of a hold</h2>
@@ -348,7 +394,9 @@ python tests/mutation_check.py</pre>
 </main>
 <footer class="night"><div class="wrap"><div class="foot"><p>{link('README.md', 'Read the full README')} or the {link('docs/THREAT_MODEL.md', 'threat model')}. MIT licensed. Measured on <a href="https://github.com/AntiQuality/agentabstain">AgentAbstain</a> (Liu et al., NeurIPS 2026). Hard limits, the auto tier and the support tickets follow ideas from earlier work on <a href="https://github.com/Chirag6722/sentinel-agent">sentinel-agent</a> and <a href="https://github.com/thegoodengineers/leash">Leash</a>.</p></div></div></footer>
 <script type="application/json" id="attack-data">{payload}</script>
-<script>{script}</script></body></html>
+<script type="application/json" id="playground-data">{pg_payload}</script>
+<script>{script}</script>
+<script>{playground_script}</script></body></html>
 """
 
 

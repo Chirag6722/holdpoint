@@ -139,7 +139,7 @@ def run_tests(cwd):
 
 
 def copy_project(work):
-    for folder in ("holdpoint", "tests", "examples", "evidence"):
+    for folder in ("holdpoint", "tests", "examples", "evidence", "site"):
         shutil.copytree(ROOT / folder, work / folder)
 
 

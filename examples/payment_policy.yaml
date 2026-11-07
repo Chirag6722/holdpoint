@@ -1,0 +1,9 @@
+# Every payment waits for a reviewer or a person. Some can never run at all.
+read_balance: lookup
+send_payment:
+  label: commit
+  rules:
+    - {arg: amount, over: 1000, then: deny}
+    - {arg: amount, over: 100, then: person}
+    - {arg: to, not_in: [Ann, Bob], then: person}
+  session_total: {arg: amount, over: 300, then: person}
