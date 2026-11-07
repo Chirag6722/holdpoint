@@ -72,7 +72,8 @@ def amount_of(entry, args: dict) -> float:
     """What this call adds to the session total. Unreadable amounts add nothing, because they are already held."""
     total = entry.get("session_total") if isinstance(entry, dict) else None
     value = args.get(total["arg"]) if total else None
-    return value if _within(value, float("inf")) else 0
+    # Size, not sign: otherwise a negative amount would lower the total and open room for a larger one.
+    return abs(value) if _within(value, float("inf")) else 0
 
 
 def check(entry, args: dict, spent: float = 0) -> tuple[str, str] | None:
@@ -83,7 +84,7 @@ def check(entry, args: dict, spent: float = 0) -> tuple[str, str] | None:
     total = entry.get("session_total")
     if total:
         value = args.get(total["arg"])
-        if not _is_number(value) or not _within(spent + value, total["over"]):
+        if not _is_number(value) or not _within(spent + abs(value), total["over"]):
             hits.append((total["then"], f"session total of {total['arg']} would pass {total['over']}"))
     return max(hits, key=lambda hit: OUTCOMES[hit[0]]) if hits else None
 

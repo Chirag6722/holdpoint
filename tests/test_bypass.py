@@ -742,6 +742,15 @@ def test_splitting_a_payment_hits_the_session_total():
     assert gate.totals["send_payment"] == 81
 
 
+def test_negative_amount_cannot_open_room_in_the_session_total():
+    policy = {"pay": {"session_total": {"arg": "amount", "over": 100, "then": "person"}}}
+    gate, _, _ = ruled_gate(policy=policy)
+    assert gate.decide("pay", {"amount": -50}, {}, []).allow is True
+    assert gate.totals["pay"] == 50
+    assert gate.decide("pay", {"amount": -500}, {}, []).by == "rules"
+    assert gate.decide("pay", {"amount": 60}, {}, []).by == "rules"
+
+
 def test_held_calls_do_not_use_up_the_session_total():
     gate, _, _ = ruled_gate(proceed=False)
     gate.decide("send_payment", {"to": "Ann", "amount": 40}, {}, [])

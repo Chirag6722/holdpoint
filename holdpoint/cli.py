@@ -7,12 +7,14 @@ import sys
 import time
 from pathlib import Path
 
+import yaml
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
 from .approval import Approvals
 from .approve_ui import make_server
 from .audit import latest_hash, verify
+from .prove import prove
 from .proxy import downstream_env, hint
 
 
@@ -40,6 +42,30 @@ def draft_policy(tools) -> str:
     return "\n".join(lines)
 
 
+def prove_command(argv: list[str]) -> None:
+    p = argparse.ArgumentParser(prog="holdpoint prove")
+    p.add_argument("policy")
+    p.add_argument("--tool", required=True)
+    p.add_argument("--never", required=True, help='for example "amount > 500" or "to not in [Ann, Bob]"')
+    p.add_argument("--even-with-approval", action="store_true", help="also rule out calls a person approved")
+    a = p.parse_args(argv)
+    with open(a.policy, encoding="utf-8") as f:
+        policy = yaml.safe_load(f) or {}
+    try:
+        result = prove(policy, a.tool, a.never, a.even_with_approval)
+    except (ValueError, RuntimeError) as exc:
+        print(f"could not prove: {exc}", file=sys.stderr)
+        sys.exit(2)
+    who = "even with a person's approval" if a.even_with_approval else "without a person's approval"
+    if result.proved:
+        print(f"PROVED: no call to {a.tool} where {a.never} can run {who}.")
+    else:
+        print(f"ESCAPE: this call to {a.tool} runs {who}: {json.dumps(result.call)}")
+    print("Assumes: " + "; ".join(result.assumptions) + ".")
+    print("This covers the rules as written, not whether they are the right rules.")
+    sys.exit(0 if result.proved else 1)
+
+
 async def _list_tools(command: list[str]):
     async with Client(StdioTransport(command[0], command[1:], env=downstream_env(os.environ))) as client:
         return await client.list_tools()
@@ -52,6 +78,8 @@ def main(argv=None):
             sys.exit("usage: holdpoint draft-policy -- COMMAND [ARG...]")
         print(draft_policy(asyncio.run(_list_tools(argv[argv.index("--") + 1:]))))
         return
+    if argv[:1] == ["prove"]:
+        return prove_command(argv[1:])
     p = argparse.ArgumentParser(prog="holdpoint")
     p.add_argument("--state-dir", required=True)
     sub = p.add_subparsers(dest="cmd", required=True)
