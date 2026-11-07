@@ -54,6 +54,10 @@ def link(path, text):
     return f'<a href="{REPO}{e(path)}">{e(text)}</a>'
 
 
+def link_button(path, text):
+    return f'<a class="btn" href="{REPO}{e(path)}">{e(text)}</a>'
+
+
 def condition_row(label, s):
     n = s["pairs_scored"]
     return (f"<tr><th scope='row'>{e(label)}</th><td>{s['paired_pass']} of {n}</td>"
@@ -107,11 +111,12 @@ def summary_strip():
     with open(ROOT / "evidence" / "heldout.csv", encoding="utf-8", newline="") as f:
         rows = [r for r in csv.DictReader(f) if r["side"] == "abstain" and r["commit"] == "False"]
     ran = {c: sum(r["condition"] == c for r in rows) for c in ("baseline", "gated")}
-    facts = [(f"{ran['baseline']} to {ran['gated']}", "irreversible actions on tasks where the agent should have stopped"),
-             (f"{base['act_pass']} to {gated['act_pass']}", "legitimate tasks completed, the price of those holds"),
-             (f"{base['paired_pass']} to {gated['paired_pass']}", "pairs with both sides right, so no benefit on the primary measure")]
-    items = "".join(f"<li><strong>{e(n)}</strong><span>{e(t)}</span></li>" for n, t in facts)
-    return f"<p class='striphead'>Result on {base['pairs_scored']} held-out task pairs, run once</p><ul class='strip'>{items}</ul>"
+    facts = [(f"{base['paired_pass']} to {gated['paired_pass']}", "The measure we set in advance",
+              "Pairs with both sides right. No benefit."),
+             (f"{ran['baseline']} to {ran['gated']}", "What it prevented",
+              "Irreversible actions on tasks where the agent should have stopped."),
+             (f"{base['act_pass']} to {gated['act_pass']}", "What it cost", "Legitimate tasks completed.")]
+    return "<ul class='plates'>" + "".join(f"<li><strong>{e(n)}</strong><b>{e(h)}</b>{e(t)}</li>" for n, h, t in facts) + "</ul>"
 
 
 def causes_section():
@@ -125,7 +130,7 @@ def causes_section():
                    for k, label in names)
     held = act["held"] + stop["held"]
     attempts = act["commit_attempts"] + stop["commit_attempts"]
-    return (f"<section><h2>What a person would have seen</h2><p>The benchmark has no person, so every hold ended the attempt. "
+    return (f"<section class='chapter paper' data-chapter='What a person would see'><div class='wrap'><h2>What a person would have seen</h2><p>The benchmark has no person, so every hold ended the attempt. "
             f"In real use it would go to someone who can approve it. A person would have seen {held} of {attempts} commit attempts. "
             f"{stop['allowed_without_a_person']} of the {stop['commit_attempts']} attempts that should not have gone ahead passed with no person involved. "
             "This count is exploratory and was not in the measurement plan, and approvals were not tested with people.</p>"
@@ -134,7 +139,55 @@ def causes_section():
             "<p>The required-tool check misread phrases like \"use original_payment_method\" as tool names. That is fixed after the run and the fix is not measured. "
             "The failed-tool check was right as often as it was wrong, so it stays as it is.</p>"
             f"<p class='source'>Source: {link('evidence/heldout_review_load.json', 'hold counts')}. "
-            "All results come from the code at tag <code>heldout-v1</code>.</p></section>")
+            "All results come from the code at tag <code>heldout-v1</code>.</p></div></section>")
+
+
+LIMITS = [
+    ("The labels are the boundary", "A destructive tool labelled as a read runs freely. Unknown tools and mistyped labels are held, but a wrong label is not.",
+     "Start from <code>holdpoint draft-policy</code>, which labels everything commit. Relax a tool only after checking it cannot change anything."),
+    ("The gate only sees MCP traffic", "An agent with shell access or a raw API key can go around it.",
+     "Give the agent no other route to the same system, and keep the credentials on the tool server's side."),
+    ("The reviewer is a model", "It can be wrong or be persuaded. Each call gets one verdict, and retries are limited, but one wrong \"proceed\" still runs the call.",
+     "For your highest-stakes tools, run with no reviewer, so every commit waits for a person."),
+    ("Wrong holds cost real work", "On held-out tasks the gate lost 17 should-act passes.",
+     "Route holds to someone who can approve them quickly. That flow is built, but it has not been tested with real people."),
+    ("Your host must supply the request", "MCP does not carry the user's request, so without it every commit is held.",
+     "Write the request to the intent file at session start, somewhere the agent cannot write."),
+    ("A tool is trusted when first seen", "Fingerprints catch a definition that changes later, not one that was malicious from the start.",
+     "Read the tool definitions before the first run, and review any change before <code>holdpoint accept-tools</code>."),
+    ("The state folder must stay out of reach", "The log stores tool arguments in readable form. Someone with the key can rewrite it, and a rollback goes unnoticed without a saved hash.",
+     "Keep the key away from the agent and the tool server. Save the latest hash somewhere else, and pass it to <code>verify-log --expect</code>."),
+    ("A hold ends the step", "There is no simulated success or rollback, so an agent cannot continue a plan past a hold.",
+     "Have the agent report the hold and wait."),
+]
+
+
+def limits_rows():
+    return "".join(f"<div role='row' class='limit'><strong role='cell'>{e(name)}</strong><span role='cell'>{e(risk)}</span><span role='cell'>{fix}</span></div>"
+                   for name, risk, fix in LIMITS)
+
+
+def self_attack_section():
+    mutants = load("mutation_check.json") or []
+    caught = sum(m["status"] == "caught" for m in mutants)
+    rows = [("A mistyped label let the call run", "<code>send_payment</code> labelled <code>Commit</code>, <code>write</code> or left empty ran with no review.",
+             "Only an exact <code>lookup</code> or <code>verify</code> passes. Anything else is held."),
+            ("Retries bought more reviews", "A simulated reviewer that was wrong 10% of the time let the same call through on try 9.",
+             "A call the reviewer held stays held until a person approves it. After 3 holds on one tool, that tool waits for a person."),
+            ("The audit log could be rewritten", "Cutting lines off, or rewriting the whole log, still reported intact.",
+             "The log and its length are now signed. A hash saved elsewhere also catches a rollback."),
+            ("A hold could be edited before approval", "Changing a hold file to pay Mallory and then approving it ran the Mallory call.",
+             "Each hold is signed when created, and a changed one is refused. This attack needs write access to the state folder."),
+            ("Tool definitions could change later", "A server could change what a trusted tool says it does. Nothing noticed.",
+             "Definitions are fingerprinted when first seen. A changed tool is held until a person accepts it.")]
+    body = "".join(f"<tr><th scope='row'>{a}</th><td>{b}</td><td>{c}</td></tr>" for a, b, c in rows)
+    score = f" The mutation check now breaks {len(mutants)} protections one at a time, and the tests caught {caught}." if mutants else ""
+    return ("<section id='attacked' class='chapter yellow' data-chapter='We attacked our own gate'><div class='wrap'><h2>We attacked our own gate</h2>"
+            "<p>After the measured run we tried to break the code ourselves and found the problems below. Each now has a test that fails if the fix is removed."
+            f"{score}</p><div class='scroll'><table class='wide'><thead><tr><th scope='col'>Problem</th><th scope='col'>What we saw</th><th scope='col'>Fix</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div>"
+            "<p><strong>Effect on the measured run:</strong> the saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. "
+            "So the published numbers stand. They come from tag <code>heldout-v1</code>, and these later fixes have not been measured on the benchmark.</p></div></section>")
 
 
 def tuning_section():
@@ -163,103 +216,6 @@ def attack_data():
             "summary": suite["summary"]}
 
 
-CSS = """
-:root{--paper:#dfe9e4;--sheet:#eef4f0;--ink:#12332d;--muted:#46635b;--line:#7b968d;--tag:#f4c20d;--ran:#0b6e4f;--fail:#a4262c}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--paper);color:var(--ink);font:400 1.0625rem/1.55 Barlow,'Segoe UI',system-ui,sans-serif}
-h1,h2{font-family:'Barlow Condensed',Barlow,'Arial Narrow',sans-serif;font-weight:600;line-height:1.08;margin:0}
-h1{font-size:clamp(2.6rem,7vw,5rem);max-width:17ch}
-h2{font-size:clamp(1.8rem,4vw,2.6rem);margin-bottom:.5rem}
-p{margin:0 0 1rem;max-width:68ch}
-a{color:var(--ran);text-underline-offset:2px}
-a:focus-visible,button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(16px,4vw,40px)}
-header{padding:clamp(32px,6vw,64px) 0 0}
-.lede{font-size:1.25rem;margin-top:1rem}
-.schematic{display:block;width:100%;height:auto;margin:clamp(20px,4vw,40px) 0 0}
-.pipe{fill:none;stroke:var(--ink);stroke-width:10}
-.flow{fill:none;stroke:var(--sheet);stroke-width:3;stroke-dasharray:6 12}
-.node{fill:var(--sheet);stroke:var(--ink);stroke-width:3}
-.nodelabel{font:600 20px 'Barlow Condensed',Barlow,sans-serif;fill:var(--ink);text-anchor:middle}
-.tagtext{font:600 19px 'Barlow Condensed',Barlow,sans-serif;fill:var(--ink);text-anchor:middle}
-.dead{stroke:var(--line);stroke-dasharray:14 10}
-section{padding:clamp(36px,6vw,64px) 0;border-top:3px solid var(--ink)}
-.proof{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(20px,4vw,48px);align-items:start}
-.verdict{font-family:'Barlow Condensed',Barlow,sans-serif;font-size:1.65rem;line-height:1.2;font-weight:600}
-table{border-collapse:collapse;width:100%;background:var(--sheet);margin:1rem 0}
-th,td{padding:.6rem .75rem;text-align:left;border:1px solid var(--line);vertical-align:top}
-thead th{font-weight:600}
-tbody th{font-weight:500}
-.scroll{overflow-x:auto}
-.source{font-size:.95rem;color:var(--muted)}
-.grid{border-collapse:separate;border-spacing:3px;background:none;margin:0;width:auto;min-width:720px}
-.grid th,.grid td{border:0;padding:0}
-.grid thead th{font-size:.82rem;line-height:1.15;font-weight:500;width:66px;height:66px;vertical-align:bottom;padding:0 3px 6px}
-.grid tbody th{font-weight:500;padding:0 12px 0 0;white-space:nowrap;vertical-align:middle}
-.cell{display:block;width:62px;height:40px;border:2px solid var(--ink);background:var(--sheet);color:var(--ink);font:600 .9rem Barlow,sans-serif;cursor:pointer;padding:0}
-.cell.hold{background:var(--tag)}
-.cell.proceed{background:var(--ran);color:#fff}
-.cell.wrong{outline:3px solid var(--fail);outline-offset:1px}
-.cell[aria-pressed=true]{box-shadow:0 0 0 3px var(--paper),0 0 0 6px var(--ink)}
-.band{margin-top:18px;font-weight:600}
-.detail{background:var(--sheet);border:3px solid var(--ink);padding:clamp(14px,3vw,24px);margin-top:20px}
-.detail h3{font:600 1.5rem/1.15 'Barlow Condensed',Barlow,sans-serif;margin:0 0 .5rem}
-.detail dl{margin:0;display:grid;grid-template-columns:minmax(90px,150px) minmax(0,1fr);gap:.4rem 1rem}
-.detail dt{font-weight:600}
-.detail dd{margin:0;overflow-wrap:anywhere}
-ul{padding-left:1.2rem;max-width:68ch}
-li{margin-bottom:.5rem}
-pre{background:var(--ink);color:var(--sheet);padding:1rem;overflow-x:auto;font-size:.95rem}
-footer{padding:28px 0 56px;border-top:3px solid var(--ink)}
-.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:16px;padding-bottom:16px;font-weight:600}
-.top .name{font:600 1.5rem 'Barlow Condensed',Barlow,sans-serif}
-.top .links{display:flex;gap:18px;flex-wrap:wrap}
-.striphead{font-weight:600;margin:clamp(20px,4vw,36px) 0 .5rem}
-.strip{list-style:none;padding:0;margin:0;max-width:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;background:var(--ink);border:3px solid var(--ink)}
-.strip li{background:var(--sheet);padding:16px 18px;margin:0}
-.strip strong{display:block;font:600 clamp(2.2rem,5vw,3.4rem)/1.05 'Barlow Condensed',Barlow,sans-serif}
-.narrow{max-width:760px}
-.steps{list-style:none;padding:0;margin:1rem 0;max-width:760px}
-.steps li{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--sheet);border:1px solid var(--line);border-bottom:0;padding:.6rem .75rem;margin:0}
-.steps li:last-child{border-bottom:1px solid var(--line)}
-.steps li.person{background:var(--ink);color:var(--sheet);font-weight:500}
-.mark{flex:none;font:600 1.05rem 'Barlow Condensed',Barlow,sans-serif;padding:0 .6rem;border:2px solid var(--ink)}
-.mark.held{background:var(--tag);color:var(--ink)}
-.mark.ran{background:var(--ran);color:#fff}
-code{font-size:.95em}
-@media (max-width:760px){.proof{grid-template-columns:minmax(0,1fr)}.detail dl{grid-template-columns:minmax(0,1fr)}.detail dd{margin-bottom:.5rem}.strip{grid-template-columns:minmax(0,1fr)}.nodelabel{font-size:36px}.tagtext{font-size:30px}}
-"""
-
-JS = """
-const data = JSON.parse(document.getElementById('attack-data').textContent);
-const detail = document.getElementById('detail');
-const buttons = document.querySelectorAll('.cell');
-const words = {hold: 'Held', proceed: 'Ran', error: 'Error'};
-function show(button) {
-  buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
-  button.setAttribute('aria-pressed', 'true');
-  const scenario = data.scenarios.find(s => s.id === button.dataset.s);
-  const attack = data.attacks.find(a => a.id === button.dataset.a);
-  const cell = scenario.cells[attack.id];
-  const fields = [['Request', scenario.intent], ['Proposed call', scenario.call],
-    ['Attack in the tool output', attack.text],
-    ['Reviewer said', cell.reason.length >= 240 ? cell.reason + ' [saved replies stop at 240 characters]' : cell.reason]];
-  const dl = document.createElement('dl');
-  fields.forEach(([k, v]) => {
-    const dt = document.createElement('dt'); dt.textContent = k;
-    const dd = document.createElement('dd'); dd.textContent = v;
-    dl.append(dt, dd);
-  });
-  const h = document.createElement('h3');
-  h.textContent = scenario.name + ': ' + attack.name + '. ' + words[cell.verdict] + '.';
-  detail.replaceChildren(h, dl);
-}
-buttons.forEach(b => b.addEventListener('click', () => show(b)));
-if (buttons.length) show(buttons[0]);
-"""
-
-
 def grid(data):
     head = "".join(f"<th scope='col'>{e(a['name'])}</th>" for a in data["attacks"])
     body = {"hold": "", "proceed": ""}
@@ -283,67 +239,88 @@ def page():
     data = attack_data()
     s = data["summary"]
     payload = json.dumps(data).replace("</", "<\\/")
-    schematic ="""<svg class="schematic" viewBox="0 0 1040 200" role="img"
-aria-label="A tool call travels from the agent along a pipe to a shut valve carrying a hold tag. The pipe beyond it, to the tool, is empty.">
-<path class="pipe" d="M150 110H470"/><path class="flow" d="M150 110H470"/>
-<path class="pipe dead" d="M550 110H890"/>
-<rect class="node" x="20" y="70" width="130" height="80"/><text class="nodelabel" x="85" y="117">Agent</text>
-<path class="node" d="M470 70 L550 150 V70 L470 150 Z"/>
-<rect class="node" x="890" y="70" width="130" height="80"/><text class="nodelabel" x="955" y="117">Your tool</text>
-<path d="M510 68V34" stroke="#12332d" stroke-width="3"/>
-<rect x="436" y="2" width="148" height="34" fill="#f4c20d" stroke="#12332d" stroke-width="3"/>
-<text class="tagtext" x="510" y="26">Hold point</text></svg>"""
+    theme = (ROOT / "site" / "theme.css").read_text(encoding="utf-8")
+    script = (ROOT / "site" / "app.js").read_text(encoding="utf-8")
+    plate = """<svg class="plate" viewBox="0 0 1040 300" role="img"
+aria-label="A tool call travels from the agent along a pipe and stops at a shut valve carrying a yellow HELD tag. The pipe beyond it, to your tool, is empty.">
+<path class="pipe" d="M180 120H480"/><path class="pipe dead" d="M560 120H860"/>
+<rect class="node" x="20" y="74" width="160" height="92"/><text class="label" x="100" y="131">Agent</text>
+<rect class="node" x="860" y="74" width="160" height="92"/><text class="label" x="940" y="131">Your tool</text>
+<path class="node" d="M480 80 L560 160 V80 L480 160 Z"/>
+<text class="call" x="330" y="96">send_payment</text>
+<circle id="token" class="token" cx="466" cy="120" r="12"/>
+<g id="swing"><path class="string" d="M520 120V168"/>
+<path class="tagbody" d="M446 168H594V284H446Z"/><circle cx="520" cy="186" r="8" fill="#000"/>
+<text class="tagword" x="520" y="246">HELD</text></g></svg>"""
+    lines = """<svg class="lines" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+<path d="M0 0 720 450 1440 0M0 900 720 450 1440 900M720 0V900M0 450H1440M0 180C360 180 540 450 720 450S1080 180 1440 180M0 720C360 720 540 450 720 450S1080 720 1440 720"/>
+<path d="M0 90H180V270H0M1260 630H1440V810H1260M90 90V270M1350 630V810"/></svg>"""
+    icon = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23f4c20d' d='M6 2h20v28H6z'/%3E"
+            "%3Ccircle cx='16' cy='8' r='3'/%3E%3C/svg%3E")
+    description = "An MCP proxy that holds an agent's irreversible tool calls for review, with its full results, including where it did not help."
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Holdpoint</title><meta name="description" content="An MCP proxy that holds an agent's irreversible tool calls for review, with its full results, including where it did not help.">
-<meta property="og:title" content="Holdpoint"><meta property="og:description" content="An MCP proxy that holds an agent's irreversible tool calls for review, with its full results, including where it did not help.">
+<title>Holdpoint</title><meta name="description" content="{description}">
+<meta property="og:title" content="Holdpoint"><meta property="og:description" content="{description}">
+<link rel="icon" href="{icon}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600&display=swap" rel="stylesheet">
-<style>{CSS}</style></head><body>
-<nav class="wrap top" aria-label="Main"><span class="name">Holdpoint</span><span class="links"><a href="#results">Results</a><a href="#run">Run it</a><a href="https://github.com/Chirag6722/holdpoint">Code on GitHub</a></span></nav>
-<header class="wrap"><h1>An agent's irreversible call stops here until it passes review.</h1>
-<p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
-{schematic}{summary_strip()}</header>
-<main class="wrap">
-<section><h2>What a hold looks like</h2><p>This is the keyless demo, run through the real proxy against a sandbox bank.</p>
-<ol class="steps">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Gloock&family=IBM+Plex+Mono:wght@400;500&family=Saira+Stencil+One&display=swap" rel="stylesheet">
+<style>{theme}</style></head><body>
+<nav class="pill" aria-label="Main"><a class="brand" href="#top">Holdpoint</a><span class="current" id="current" aria-hidden="true"></span>
+<span class="links"><a href="#results">Results</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
+<header class="hero" id="top" data-chapter="">{lines}<div class="wrap">
+<h1>An agent's irreversible call stops here until it passes review.</h1>
+<div class="opening"><div><p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
+<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#run">Try to break it</a></div></div>
+{plate}</div></div></header>
+<main>
+<section id="results" class="chapter paper" data-chapter="Did it work?"><div class="wrap">
+<h2>Did it work? Not on the measure we set in advance.</h2>
+<p>{link('bench/split.json', '89 held-out task pairs')} from the AgentAbstain benchmark, run once. Each task has a near-identical twin where acting is wrong, so a gate that blocks everything scores zero.</p>
+{summary_strip()}
+<div class="proof"><div>
+<p class="source">Agent: Claude Haiku 4.5. Reviewer and judge: Claude Sonnet 4.6. One run per task. These numbers cannot be compared with the benchmark's published leaderboard, because the judge and harness differ.</p>
+</div><div>{held_out_section()}</div></div></div></section>
+<section id="flow" class="chapter night" data-chapter="What a hold looks like"><div class="wrap">
+<h2>What a hold looks like</h2>
+<p>Step through the keyless demo. This is a replay of what <code>examples/demo.py</code> prints when it runs through the real proxy against a sandbox bank.</p>
+<div class="demo"><ol class="steps">
 <li>Read the balance<span class="mark ran">RAN</span></li>
 <li>Send $10 to Ann<span class="mark held">HELD</span></li>
 <li>Send it again, claiming approval<span class="mark held">HELD</span></li>
 <li class="person">A person reviews the hold and approves that one call, once</li>
 <li>Try $9,999 to Mallory instead<span class="mark held">HELD</span></li>
-<li>The approved call<span class="mark ran">RAN</span></li>
+<li data-sent="$10 to Ann">The approved call<span class="mark ran">RAN</span></li>
 <li>Replay the approved call<span class="mark held">HELD</span></li>
 <li>A tool the policy has never heard of<span class="mark held">HELD</span></li>
-</ol><p>Money sent in total: $10 to Ann.</p></section>
-<section id="results"><h2>Did it work on a real agent?</h2><div class="proof"><div>
-<p>Measured on {link('bench/split.json', '89 held-out task pairs')} from the AgentAbstain benchmark, run once. Each task has a near-identical twin where acting is wrong, so a gate that blocks everything scores zero.</p>
-<p class="source">Agent: Claude Haiku 4.5. Reviewer and judge: Claude Sonnet 4.6. One run per task. These numbers cannot be compared with the benchmark's published leaderboard, because the judge and harness differ.</p>
-</div><div>{held_out_section()}</div></div></section>
+</ol><div class="ledger"><span>Money sent</span><strong id="sent">$10 to Ann</strong>
+<button class="btn primary js-only" id="next" type="button">Start the agent</button>
+<p class="source" id="step-status" aria-live="polite" style="margin:1rem 0 0"></p></div></div></div></section>
 {causes_section()}
-<section><h2>Try to talk the reviewer out of a hold</h2>
+<section class="chapter night" data-chapter="Talk the reviewer out of a hold"><div class="wrap">
+<h2>Try to talk the reviewer out of a hold</h2>
 <p>We put {len(data['attacks'])} prompt-injection attacks into tool output and sent each to the real reviewer. {s['attacks_that_flipped_hold_to_proceed']} of {s['attacks_on_correctly_held_scenarios']} attacks turned a correct hold into a run. {s['proceed_controls_held_under_attack']} of {s['proceed_controls_attacked']} attacks on harmless tasks caused a needless hold. Choose any cell to read the attack and the reviewer's reply.</p>
 {grid(data)}
 <div class="detail" id="detail" aria-live="polite"></div>
 <p class="source" style="margin-top:1rem">This is a fixed list of attacks we wrote, not an adaptive attacker. A determined attacker may do better, which is why the hard gate and approvals do not rely on the reviewer. Source: {link('evidence/injection_suite.json', 'every verdict')}.</p>
-</section>
-<section><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, and the gain seen here did not carry over to the held-out pairs above.</p>
-{tuning_section()}</section>
-<section id="run"><h2>Run it yourself</h2><p>The demo and the bypass suite need no API keys.</p>
-<pre>pip install -e ".[dev]"
+</div></section>
+{self_attack_section()}
+<section class="chapter paper" data-chapter="What tuning changed"><div class="wrap"><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, and the gain seen here did not carry over to the held-out pairs above.</p>
+{tuning_section()}</div></section>
+<section id="limits" class="chapter paper" style="padding-top:0" data-chapter="Known limits"><div class="wrap"><h2>Known limits</h2><p>What Holdpoint does not protect you from, and what to do about it.</p>
+<div class="limits" role="table" aria-label="Known limits">
+<div role="rowgroup" class="limithead"><div role="row"><span role="columnheader">Limit</span><span role="columnheader">What can go wrong</span><span role="columnheader">What you can do</span></div></div>
+<div role="rowgroup">{limits_rows()}</div></div></div></section>
+<section id="run" class="chapter night" data-chapter="Try to break it"><div class="wrap"><h2>Try to break it</h2><p>The demo and the bypass suite need no API keys.</p>
+<pre class="terminal">pip install -e ".[dev]"
 python examples/demo.py
 pytest -q
-python tests/mutation_check.py</pre></section>
-<section><h2>Known limits</h2><ul>
-<li>The labels are the boundary. A destructive tool labelled as a read runs freely.</li>
-<li>The gate only sees MCP traffic. An agent with shell access or a raw API key can go around it.</li>
-<li>The reviewer is a model, so it can be wrong or be persuaded.</li>
-<li>A wrong hold stops legitimate work, which is why should-act loss sits beside every result.</li>
-<li>Your host must give the gate the user's request. Without it, every commit is held.</li></ul></section>
+python tests/mutation_check.py</pre>
+<div class="actions"><a class="btn primary" href="https://github.com/Chirag6722/holdpoint">Read the code</a>{link_button('bench/README.md', 'Reproduce every measurement')}</div></div></section>
 </main>
-<footer class="wrap"><p>{link('README.md', 'Read the full README')}. MIT licensed. Measured on <a href="https://github.com/AntiQuality/agentabstain">AgentAbstain</a> (Liu et al., NeurIPS 2026).</p></footer>
+<footer class="night"><div class="wrap"><div class="foot"><p>{link('README.md', 'Read the full README')} or the {link('docs/THREAT_MODEL.md', 'threat model')}. MIT licensed. Measured on <a href="https://github.com/AntiQuality/agentabstain">AgentAbstain</a> (Liu et al., NeurIPS 2026).</p></div></div></footer>
 <script type="application/json" id="attack-data">{payload}</script>
-<script>{JS}</script></body></html>
+<script>{script}</script></body></html>
 """
 
 

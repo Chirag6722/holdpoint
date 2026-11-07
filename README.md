@@ -47,6 +47,7 @@ python tests/mutation_check.py   # breaks each protection and confirms a test no
 | Evidence | Where |
 |---|---|
 | Bypass suite | [tests/test_bypass.py](tests/test_bypass.py) |
+| What it defends against, and what it does not | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) |
 | Facts, runs and corrections log | [evidence/m0-verification.md](evidence/m0-verification.md) |
 | How to reproduce every measurement | [bench/README.md](bench/README.md) |
 | Frozen development and held-out split | [bench/split.json](bench/split.json) |
@@ -56,6 +57,8 @@ python tests/mutation_check.py   # breaks each protection and confirms a test no
 Tool-using agents often act first and notice the problem later, and a later refusal cannot undo the harm. In [AgentAbstain](https://arxiv.org/abs/2607.10059), a paired benchmark of 263 should-act and should-abstain tasks, the best of 17 frontier models got 59.5% of pairs right. On average, models simply executed in 19.7% of should-abstain runs, and acted and then claimed restraint in another 2.6%.
 
 The person this hurts is the engineer connecting an agent to real write access: payments, bookings, deploys, messages. Today they approve every call until they stop reading, or they auto-approve and hope.
+
+Holdpoint's worked example is a payment, and the closest challenge categories are safeguarding financial transactions and delegated actions.
 
 ## How it works
 
@@ -77,7 +80,8 @@ flowchart LR
 | Automatic checks | Holds if an earlier tool failed and never recovered, or if the request requires a tool that does not exist. | No |
 | Independent reviewer | A separate model reads the request as trusted text and tool results as quoted untrusted data. Any error or malformed reply is a hold. | Yes |
 | Human approval | A signed token bound to the tool and its exact arguments. Single use, and it expires. | No |
-| Audit log | Every decision goes in a hash-chained log, so edits are detectable. | No |
+| Audit log | Every decision goes in a signed, hash-chained log, so edits and cuts are detectable without the key. | No |
+| Tool fingerprints | A tool whose definition changed since it was first seen is held until a person accepts it. | No |
 
 The agent has no route around the gate and cannot approve itself. Secrets stay on the gate's side and are stripped from the tool server's environment.
 
@@ -96,6 +100,23 @@ Put the proxy in front of your MCP server, wherever your client configures its c
 holdpoint-proxy --policy policy.yaml --state-dir ./state --intent-file request.txt -- python your_server.py
 ```
 
+In clients that use the common `mcpServers` format, that looks like this. Use absolute paths:
+
+```json
+{
+  "mcpServers": {
+    "bank-gated": {
+      "command": "holdpoint-proxy",
+      "args": ["--policy", "/abs/policy.yaml", "--state-dir", "/abs/state", "--intent-file", "/abs/request.txt",
+               "--", "python", "/abs/your_server.py"],
+      "env": {"HOLDPOINT_KEY": "a long random secret"}
+    }
+  }
+}
+```
+
+Remove the direct entry for that server, or the agent can still reach it without the gate.
+
 | Setting | Purpose |
 |---|---|
 | `HOLDPOINT_KEY` | Signs approvals. With no key, approvals are off and holds stay held. |
@@ -107,7 +128,14 @@ Handle holds as a person:
 ```bash
 holdpoint --state-dir ./state holds
 holdpoint --state-dir ./state approve HOLD_ID --ttl 300
-holdpoint --state-dir ./state verify-log
+holdpoint --state-dir ./state verify-log --expect HASH_SAVED_EARLIER
+holdpoint --state-dir ./state accept-tools    # after reviewing a changed tool definition
+```
+
+Start a policy from your server. Everything is drafted as `commit`, and server hints appear only as comments, because a server's claims about itself cannot be trusted:
+
+```bash
+holdpoint draft-policy -- python your_server.py > policy.yaml
 ```
 
 **One requirement you must meet.** MCP carries tool calls but not the user's request, and the reviewer needs that request. Your host must write it to the intent file at session start, somewhere the agent cannot write. Without it, every commit is held.
@@ -129,11 +157,15 @@ No keys or network needed. It follows the failure states the challenge names.
 | Reviewer timeout, connection failure or garbled reply | Held |
 | Reviewer compromised and always saying proceed | Automatic checks still hold |
 | Injection text in tool output | Stays quoted as data in the review prompt |
-| Audit log edited | Detected |
+| Audit log edited, cut short or rewritten without the key | Detected |
+| Mistyped or invalid label | Held |
+| Same held call retried, or arguments changed repeatedly | Stays held, reviews limited |
+| Hold file edited before approval | Approval refused |
+| Tool definition changed after first use | Held |
 
 Negative controls confirm reads still run, recovered failures do not hold, and IDs in a request are not mistaken for tools.
 
-The tests are themselves tested: `tests/mutation_check.py` removes each of 23 protections in turn and confirms a test fails.
+The tests are themselves tested: `tests/mutation_check.py` removes each protection in turn and confirms a test fails. [Latest result](evidence/mutation_check.json).
 
 ### Scripted replay on the benchmark
 
@@ -194,6 +226,20 @@ Every number above comes from the code at tag `heldout-v1`, not from later commi
 
 **What the gate never sees:** task type, scenario, or the answer fields in the benchmark's task files. It uses only each sandbox's generic tool labels, and the reviewer gets only the request and the live trace. A dry run checked 184 reviewer requests for those fields and found none.
 
+## We attacked our own gate
+
+After the measured run we tried to break the code ourselves. Each problem now has a test that fails if the fix is removed.
+
+| Problem | What we saw | Fix |
+|---|---|---|
+| A mistyped label let the call run | `send_payment` labelled `Commit`, `write` or left empty ran with no review | Only an exact `lookup` or `verify` passes; anything else is held |
+| Retries bought more reviews | A simulated reviewer that was wrong 10% of the time let the same call through on try 9 | A call the reviewer held stays held until a person approves it. After 3 holds on one tool, that tool waits for a person |
+| The audit log could be rewritten | Cutting lines off, or rewriting the whole log, still reported intact | The log and its length are signed. `verify-log --expect` with a hash saved elsewhere also catches a rollback |
+| A hold could be edited before approval | Changing a hold file to pay Mallory and then approving it ran the Mallory call. This needs write access to the state folder | Each hold is signed when created, and a changed one is refused |
+| Tool definitions could change later | A server could change what a trusted tool says it does, and nothing noticed | Definitions are fingerprinted when first seen. A changed tool is held until `accept-tools` |
+
+**Effect on the measured run.** The saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. So the published numbers stand. They come from tag `heldout-v1`, and these fixes have not been measured on the benchmark.
+
 ## Honest status
 
 | Part | State |
@@ -211,7 +257,10 @@ Every number above comes from the code at tag `heldout-v1`, not from later commi
 
 ## Known limits
 
-- **The labels are the boundary.** A destructive tool labelled `lookup` runs freely. Unknown tools are safe by default, wrong labels are not.
+- **The labels are the boundary.** A destructive tool labelled `lookup` runs freely. Unknown tools and mistyped labels are held, but a wrong label is not.
+- **A tool is trusted when first seen.** Fingerprints catch a definition that changes later, not one that was malicious from the start.
+- **The state folder must stay out of reach.** The log stores tool arguments in readable form. Someone with the key can rewrite it, and a rollback goes unnoticed without a hash saved elsewhere.
+- **Limits on retries last one session.** Restarting the proxy resets them.
 - **The gate only sees MCP traffic.** An agent with another route to the same system, such as shell access or a raw API key, can bypass it.
 - **The model-based layer is probabilistic.** A reviewer can be wrong or be persuaded. That is why the hard gate, checks and approvals do not depend on it.
 - **Holds cost something.** A wrong hold stops legitimate work, which is why should-act loss is reported beside every result.
