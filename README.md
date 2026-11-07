@@ -173,12 +173,20 @@ The last line is the point of a paired benchmark: a gate that blocks everything 
 
 So a person would have seen 64 of 141 attempts, compared with all 141 if every commit needed approval. Of the 47 attempts that should not have gone ahead, 9 passed with no person involved. [Source](evidence/heldout_review_load.json).
 
-**Reading the wrongful holds** shows two kinds. Many are defensible, such as a stock order held after a check returned empty results. Others are plain bugs we found only after the run, and left in place so the code matches the measurement:
+**What caused the holds.** Also exploratory, counted from the saved audit logs. [Source](evidence/heldout_review_load.json).
 
-- The required-tool check treats phrases like "use original_payment_method" as tool names, causing false holds.
-- The failed-tool check holds even when the failed tool was not needed for the action.
+| Cause of the hold | Should-act tasks (wrong) | Should-stop tasks (right) |
+|---|---:|---:|
+| Independent reviewer | 17 | 29 |
+| Failed-tool check | 7 | 7 |
+| Required-tool check | 2 | 2 |
 
-These holds still count as wrong in every number above. Any fix would need testing on tasks we have not already seen, and the benchmark's task generator is private, so a fixed version would have no clean measurement here.
+**Two check problems, found only after the run:**
+
+- **Required-tool check, fixed after the run and not measured.** It treated phrases like "use original_payment_method" as tool names. The four holds it caused were all this mistake, including two on should-stop tasks that were right only by accident. Those four calls would now go to the reviewer instead, and the effect has not been measured. Tool names in quotes, followed by the word "tool", or after "call" or "invoke" still count. The same change fixes a miss: a capitalised "Call x" at the start of a sentence used to go unnoticed.
+- **Failed-tool check, left as it is.** It holds even when the failed tool was not needed for the action. It was right as often as it was wrong, so these results give no case for weakening a safety check.
+
+Every number above comes from the code at tag `heldout-v1`, not from later commits. These holds still count as wrong. The benchmark's task generator is private, so a changed version has no clean measurement here.
 
 **The method was fixed in advance.** The 131 operational pairs were split into 42 development and 89 held-out pairs, stratified by scenario with a fixed seed. That split was the [first commit](bench/split.json), before any reviewer code existed.
 

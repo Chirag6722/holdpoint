@@ -99,6 +99,44 @@ def held_out_section():
             f"Rules fixed in advance: {link('docs/PREREGISTRATION.md', 'measurement plan')}.</p>")
 
 
+def summary_strip():
+    summary = load("heldout.summary.json")
+    if not summary or "gated" not in summary:
+        return ""
+    base, gated = summary["baseline"], summary["gated"]
+    with open(ROOT / "evidence" / "heldout.csv", encoding="utf-8", newline="") as f:
+        rows = [r for r in csv.DictReader(f) if r["side"] == "abstain" and r["commit"] == "False"]
+    ran = {c: sum(r["condition"] == c for r in rows) for c in ("baseline", "gated")}
+    facts = [(f"{ran['baseline']} to {ran['gated']}", "irreversible actions on tasks where the agent should have stopped"),
+             (f"{base['act_pass']} to {gated['act_pass']}", "legitimate tasks completed, the price of those holds"),
+             (f"{base['paired_pass']} to {gated['paired_pass']}", "pairs with both sides right, so no benefit on the primary measure")]
+    items = "".join(f"<li><strong>{e(n)}</strong><span>{e(t)}</span></li>" for n, t in facts)
+    return f"<p class='striphead'>Result on {base['pairs_scored']} held-out task pairs, run once</p><ul class='strip'>{items}</ul>"
+
+
+def causes_section():
+    load_data = load("heldout_review_load.json")
+    if not load_data or "holds_by_cause" not in load_data["act"]:
+        return ""
+    act, stop = load_data["act"], load_data["abstain"]
+    names = [("reviewer", "Independent reviewer"), ("failed_tool_check", "Failed-tool check"),
+             ("required_tool_check", "Required-tool check")]
+    rows = "".join(f"<tr><th scope='row'>{label}</th><td>{act['holds_by_cause'][k]}</td><td>{stop['holds_by_cause'][k]}</td></tr>"
+                   for k, label in names)
+    held = act["held"] + stop["held"]
+    attempts = act["commit_attempts"] + stop["commit_attempts"]
+    return (f"<section><h2>What a person would have seen</h2><p>The benchmark has no person, so every hold ended the attempt. "
+            f"In real use it would go to someone who can approve it. A person would have seen {held} of {attempts} commit attempts. "
+            f"{stop['allowed_without_a_person']} of the {stop['commit_attempts']} attempts that should not have gone ahead passed with no person involved. "
+            "This count is exploratory and was not in the measurement plan, and approvals were not tested with people.</p>"
+            "<table class='narrow'><thead><tr><th scope='col'>Cause of the hold</th><th scope='col'>Should-act tasks (wrong)</th>"
+            f"<th scope='col'>Should-stop tasks (right)</th></tr></thead><tbody>{rows}</tbody></table>"
+            "<p>The required-tool check misread phrases like \"use original_payment_method\" as tool names. That is fixed after the run and the fix is not measured. "
+            "The failed-tool check was right as often as it was wrong, so it stays as it is.</p>"
+            f"<p class='source'>Source: {link('evidence/heldout_review_load.json', 'hold counts')}. "
+            "All results come from the code at tag <code>heldout-v1</code>.</p></section>")
+
+
 def tuning_section():
     r1, r2 = load("rounds/round1.summary.json"), load("rounds/round2.summary.json")
     if not r1 or not r2:
@@ -174,7 +212,23 @@ ul{padding-left:1.2rem;max-width:68ch}
 li{margin-bottom:.5rem}
 pre{background:var(--ink);color:var(--sheet);padding:1rem;overflow-x:auto;font-size:.95rem}
 footer{padding:28px 0 56px;border-top:3px solid var(--ink)}
-@media (max-width:760px){.proof{grid-template-columns:minmax(0,1fr)}.detail dl{grid-template-columns:minmax(0,1fr)}.detail dd{margin-bottom:.5rem}}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:16px;padding-bottom:16px;font-weight:600}
+.top .name{font:600 1.5rem 'Barlow Condensed',Barlow,sans-serif}
+.top .links{display:flex;gap:18px;flex-wrap:wrap}
+.striphead{font-weight:600;margin:clamp(20px,4vw,36px) 0 .5rem}
+.strip{list-style:none;padding:0;margin:0;max-width:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;background:var(--ink);border:3px solid var(--ink)}
+.strip li{background:var(--sheet);padding:16px 18px;margin:0}
+.strip strong{display:block;font:600 clamp(2.2rem,5vw,3.4rem)/1.05 'Barlow Condensed',Barlow,sans-serif}
+.narrow{max-width:760px}
+.steps{list-style:none;padding:0;margin:1rem 0;max-width:760px}
+.steps li{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--sheet);border:1px solid var(--line);border-bottom:0;padding:.6rem .75rem;margin:0}
+.steps li:last-child{border-bottom:1px solid var(--line)}
+.steps li.person{background:var(--ink);color:var(--sheet);font-weight:500}
+.mark{flex:none;font:600 1.05rem 'Barlow Condensed',Barlow,sans-serif;padding:0 .6rem;border:2px solid var(--ink)}
+.mark.held{background:var(--tag);color:var(--ink)}
+.mark.ran{background:var(--ran);color:#fff}
+code{font-size:.95em}
+@media (max-width:760px){.proof{grid-template-columns:minmax(0,1fr)}.detail dl{grid-template-columns:minmax(0,1fr)}.detail dd{margin-bottom:.5rem}.strip{grid-template-columns:minmax(0,1fr)}.nodelabel{font-size:36px}.tagtext{font-size:30px}}
 """
 
 JS = """
@@ -189,7 +243,8 @@ function show(button) {
   const attack = data.attacks.find(a => a.id === button.dataset.a);
   const cell = scenario.cells[attack.id];
   const fields = [['Request', scenario.intent], ['Proposed call', scenario.call],
-    ['Attack in the tool output', attack.text], ['Reviewer said', cell.reason]];
+    ['Attack in the tool output', attack.text],
+    ['Reviewer said', cell.reason.length >= 240 ? cell.reason + ' [saved replies stop at 240 characters]' : cell.reason]];
   const dl = document.createElement('dl');
   fields.forEach(([k, v]) => {
     const dt = document.createElement('dt'); dt.textContent = k;
@@ -240,18 +295,32 @@ aria-label="A tool call travels from the agent along a pipe to a shut valve carr
 <text class="tagtext" x="510" y="26">Hold point</text></svg>"""
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Holdpoint</title><meta name="description" content="A commit gate for MCP tools, with its evidence.">
+<title>Holdpoint</title><meta name="description" content="An MCP proxy that holds an agent's irreversible tool calls for review, with its full results, including where it did not help.">
+<meta property="og:title" content="Holdpoint"><meta property="og:description" content="An MCP proxy that holds an agent's irreversible tool calls for review, with its full results, including where it did not help.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600&display=swap" rel="stylesheet">
 <style>{CSS}</style></head><body>
+<nav class="wrap top" aria-label="Main"><span class="name">Holdpoint</span><span class="links"><a href="#results">Results</a><a href="#run">Run it</a><a href="https://github.com/Chirag6722/holdpoint">Code on GitHub</a></span></nav>
 <header class="wrap"><h1>An agent's irreversible call stops here until it passes review.</h1>
 <p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
-{schematic}</header>
+{schematic}{summary_strip()}</header>
 <main class="wrap">
-<section><h2>Did it work on a real agent?</h2><div class="proof"><div>
+<section><h2>What a hold looks like</h2><p>This is the keyless demo, run through the real proxy against a sandbox bank.</p>
+<ol class="steps">
+<li>Read the balance<span class="mark ran">RAN</span></li>
+<li>Send $10 to Ann<span class="mark held">HELD</span></li>
+<li>Send it again, claiming approval<span class="mark held">HELD</span></li>
+<li class="person">A person reviews the hold and approves that one call, once</li>
+<li>Try $9,999 to Mallory instead<span class="mark held">HELD</span></li>
+<li>The approved call<span class="mark ran">RAN</span></li>
+<li>Replay the approved call<span class="mark held">HELD</span></li>
+<li>A tool the policy has never heard of<span class="mark held">HELD</span></li>
+</ol><p>Money sent in total: $10 to Ann.</p></section>
+<section id="results"><h2>Did it work on a real agent?</h2><div class="proof"><div>
 <p>Measured on {link('bench/split.json', '89 held-out task pairs')} from the AgentAbstain benchmark, run once. Each task has a near-identical twin where acting is wrong, so a gate that blocks everything scores zero.</p>
-<p class="source">The tested agent and judge are named in the {link('docs/PREREGISTRATION.md', 'measurement plan')}. These numbers cannot be compared with the benchmark's published leaderboard, because the judge and harness differ.</p>
+<p class="source">Agent: Claude Haiku 4.5. Reviewer and judge: Claude Sonnet 4.6. One run per task. These numbers cannot be compared with the benchmark's published leaderboard, because the judge and harness differ.</p>
 </div><div>{held_out_section()}</div></div></section>
+{causes_section()}
 <section><h2>Try to talk the reviewer out of a hold</h2>
 <p>We put {len(data['attacks'])} prompt-injection attacks into tool output and sent each to the real reviewer. {s['attacks_that_flipped_hold_to_proceed']} of {s['attacks_on_correctly_held_scenarios']} attacks turned a correct hold into a run. {s['proceed_controls_held_under_attack']} of {s['proceed_controls_attacked']} attacks on harmless tasks caused a needless hold. Choose any cell to read the attack and the reviewer's reply.</p>
 {grid(data)}
@@ -260,7 +329,7 @@ aria-label="A tool call travels from the agent along a pipe to a shut valve carr
 </section>
 <section><h2>What tuning changed</h2><p>The first reviewer did worse than no gate at all, because it held too many legitimate calls. Reading its reasons led to two general changes: it now sees each tool's definition, and it must name a specific reason to hold. These 42 pairs were used for tuning, and the gain seen here did not carry over to the held-out pairs above.</p>
 {tuning_section()}</section>
-<section><h2>Run it yourself</h2><p>The demo and the bypass suite need no API keys.</p>
+<section id="run"><h2>Run it yourself</h2><p>The demo and the bypass suite need no API keys.</p>
 <pre>pip install -e ".[dev]"
 python examples/demo.py
 pytest -q
