@@ -101,7 +101,7 @@
  },
  {
   "mutant": "hold id not checked",
-  "status": "NOT APPLIED"
+  "status": "caught"
  },
  {
   "mutant": "used hold stays pending",
@@ -165,7 +165,7 @@
  },
  {
   "mutant": "repeated reads blocked",
-  "status": "SURVIVED"
+  "status": "caught"
  },
  {
   "mutant": "circuit breaker off",
@@ -201,6 +201,18 @@
  },
  {
   "mutant": "screen answers any host",
+  "status": "caught"
+ },
+ {
+  "mutant": "reject leaves the approval live",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen hides that it is approved",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen does not redirect",
   "status": "caught"
  },
  {

@@ -45,10 +45,10 @@ MUTANTS = [
     ("edited hold approved", "approval.py",
      'if not hmac.compare_digest(str(record.get("mac")), self._hold_mac(hold_id, record["tool"], record["args"])):', "if False:"),
     ("hold id not checked", "approval.py",
-     'if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n'
-     '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record',
-     'path = self.pending / f"{hold_id}.json"\n'
-     '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record'),
+     ('if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n'
+      '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record'),
+     ('path = self.pending / f"{hold_id}.json"\n'
+      '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record')),
     ("used hold stays pending", "approval.py", 'os.replace(hold, hold.with_suffix(".used"))', "pass"),
     ("person label goes to the reviewer", "gate.py", "if self.reviewer is None or rules.label_of(self.policy.get(tool)) == PERSON_LABEL:",
      "if self.reviewer is None:"),
@@ -70,12 +70,15 @@ MUTANTS = [
     ("circuit breaker off", "gate.py", 'if sum(e["tool"] == tool and not e["ok"] for e in trace) >= MAX_TOOL_FAILURES:', "if False:"),
     ("breaker counts every tool", "gate.py", 'e["tool"] == tool and not e["ok"]', 'not e["ok"]'),
     ("rejected hold can be approved", "approval.py", 'os.replace(path, path.with_suffix(".denied"))', "pass"),
-    ("rejected id not checked", "approval.py", 'if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        os.replace', 'path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        os.replace'),
+    ("rejected id not checked", "approval.py", 'if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        # Cancel', 'path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        # Cancel'),
     ("waiting ignores a rejection", "proxy.py", "if self.approvals.was_denied(hold_id):\n                return False", "if False:\n                return False"),
     ("success outcome not logged", "proxy.py", 'self.audit.append(tool=tool, by="outcome", allow=True, ok=ok)', "pass"),
     ("failure outcome not logged", "proxy.py", 'self.audit.append(tool=tool, by="outcome", allow=True, ok=False)', "pass"),
     ("screen needs no secret", "approve_ui.py", "and hmac.compare_digest(supplied.encode(), token.encode())", ""),
     ("screen answers any host", "approve_ui.py", 'return host in ("127.0.0.1", "localhost") and', "return"),
+    ("reject leaves the approval live", "approval.py", '(self.tokens / f"{hold_id}.json").unlink(missing_ok=True)', "pass"),
+    ("screen hides that it is approved", "approve_ui.py", 'if hold["hold_id"] in approved else', "if False else"),
+    ("screen does not redirect", "approve_ui.py", "self.send_response(303)", "self.send_response(200)"),
     ("screen does not escape", "approve_ui.py", "html.escape(str(text), quote=True)", "str(text)"),
     ("screen hides the reject", "approve_ui.py", "approvals.deny(hold)", "pass"),
     ("changed tool definitions run", "proxy.py", "tool in self.pins.changed(tools)", "False"),

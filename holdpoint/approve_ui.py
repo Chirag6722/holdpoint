@@ -9,7 +9,7 @@ import json
 import secrets
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 STYLE = """
 :root{--paper:#dfe9e4;--sheet:#eef4f0;--ink:#12332d;--tag:#f4c20d;--line:#7b968d;--fail:#a4262c}
@@ -23,27 +23,30 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:400 .95rem Consolas,monospa
 form{display:inline}
 button{font:600 1rem system-ui;padding:.5rem 1.1rem;border-radius:999px;border:2px solid var(--ink);cursor:pointer;margin:.5rem .5rem 0 0}
 .approve{background:var(--ink);color:#fff}.reject{background:none;color:var(--fail);border-color:var(--fail)}
+.done{font-weight:600;color:#0b6e4f;margin:.5rem 0}
 .msg{background:var(--sheet);border-left:6px solid var(--fail);padding:10px 14px;margin-top:14px}
 :focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 """
 
 
-def render(holds: list[dict], token: str, message: str = "") -> str:
+def render(holds: list[dict], token: str, message: str = "", approved: frozenset | set = frozenset()) -> str:
     e = lambda text: html.escape(str(text), quote=True)
     cards = ""
     for hold in sorted(holds, key=lambda h: h["at"]):
         when = time.strftime("%H:%M:%S", time.localtime(hold["at"]))
         fields = "".join(f"<input type='hidden' name='{k}' value='{e(v)}'>"
                          for k, v in (("token", token), ("hold", hold["hold_id"])))
+        approve = ("<p class='done'>Approved. It runs once if the agent asks again. Reject cancels this.</p>"
+                   if hold["hold_id"] in approved else
+                   f"<form method='post' action='/approve'>{fields}<button class='approve'>Approve this exact call once</button></form>")
         cards += (f"<section class='hold'><div class='tool'>{e(hold['tool'])}</div>"
                   f"<pre>{e(json.dumps(hold['args'], indent=1, sort_keys=True))}</pre>"
-                  f"<p class='why'>Held at {when}. {e(hold['reason'])}</p>"
-                  f"<form method='post' action='/approve'>{fields}<button class='approve'>Approve this exact call once</button></form>"
+                  f"<p class='why'>Held at {when}. {e(hold['reason'])}</p>{approve}"
                   f"<form method='post' action='/reject'>{fields}<button class='reject'>Reject</button></form></section>")
     note = f"<p class='msg' role='status'>{e(message)}</p>" if message else ""
     body = cards or "<p>Nothing is waiting for approval.</p>"
     return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<meta http-equiv='refresh' content='5'><meta name='referrer' content='no-referrer'><title>Holdpoint approvals</title><style>{STYLE}</style></head>"
+            f"<meta http-equiv='refresh' content='5; url=/?token={e(quote(token))}'><meta name='referrer' content='no-referrer'><title>Holdpoint approvals</title><style>{STYLE}</style></head>"
             f"<body><main><h1>Waiting for you</h1><p>Approving runs that exact call once, within {APPROVAL_TTL_SECONDS // 60} minutes.</p>{note}{body}</main></body></html>")
 
 
@@ -73,7 +76,7 @@ def make_server(approvals, port: int = 0):
             query = parse_qs(urlparse(self.path).query)
             if urlparse(self.path).path != "/" or not self._trusted(query.get("token", [""])[0]):
                 return self._send(403, "Forbidden. Use the link the command printed.")
-            return self._send(200, render(approvals.list_holds(), token, query.get("msg", [""])[0]))
+            return self._send(200, render(approvals.list_holds(), token, query.get("msg", [""])[0], approvals.approved_ids()))
 
         def do_POST(self):
             length = min(int(self.headers.get("Content-Length") or 0), 4096)
@@ -91,7 +94,11 @@ def make_server(approvals, port: int = 0):
                     return self._send(404, "Not found.")
             except (ValueError, OSError) as exc:
                 message = str(exc)
-            return self._send(200, render(approvals.list_holds(), token, message))
+            # Redirect, so a refresh of this page can never send the approval again.
+            self.send_response(303)
+            self.send_header("Location", f"/?{urlencode({'token': token, 'msg': message})}")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def log_message(self, *_args):
             pass

@@ -5,6 +5,7 @@ information, prompt injection, unauthorized requests, approval bypass, expired
 approvals, malformed arguments, timeouts.
 """
 import asyncio
+import http.client
 import json
 import os
 import re
@@ -16,7 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import pytest
 import yaml
@@ -379,6 +380,8 @@ def test_tool_call_that_raises_counts_as_failed_for_later_commits(tmp_path):
         with pytest.raises(ToolError, match="never recovered"):
             await middleware.on_call_tool(context("send_payment", PAY), must_not_run)
     run(go())
+    events = [json.loads(line)["event"] for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {"tool": "check_payee", "by": "outcome", "allow": True, "ok": False} in events
 
 
 def test_valid_verdicts_parse():
@@ -987,6 +990,56 @@ def test_approval_screen_can_reject_and_reports_an_edited_hold(tmp_path):
         path.write_text(path.read_text(encoding="utf-8").replace("Ann", "Mallory"), encoding="utf-8")
         assert "changed" in fetch(base + "/approve", {"token": token, "hold": edited})[1]
         assert list(approvals.tokens.glob("*.json")) == []
+    finally:
+        server.shutdown()
+
+
+def test_approval_screen_redirects_so_a_refresh_cannot_repeat_the_action(tmp_path):
+    approvals, server, url = serve(tmp_path)
+    parsed = urlsplit(url)
+    token = parsed.query.split("=", 1)[1]
+    hold = approvals.record_hold("send_payment", PAY, "held")
+    try:
+        connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
+        connection.request("POST", "/approve", urlencode({"token": token, "hold": hold}),
+                           {"Content-Type": "application/x-www-form-urlencoded"})
+        reply = connection.getresponse()
+        reply.read()
+        assert reply.status == 303
+        location = reply.getheader("Location")
+        assert location.startswith("/?") and token in location
+        page = fetch(f"{parsed.scheme}://{parsed.netloc}{location}")[1]
+        assert f"url=/?token={token}" in page.replace("&#x27;", "'")
+        assert len(list(approvals.tokens.glob("*.json"))) == 1
+    finally:
+        server.shutdown()
+
+
+def test_rejecting_after_approving_cancels_the_approval(tmp_path):
+    approvals = Approvals(tmp_path, KEY)
+    hold_id = approvals.record_hold("send_payment", PAY, "held")
+    approvals.approve(hold_id, 60)
+    approvals.deny(hold_id)
+    assert approvals.consume("send_payment", PAY) is None
+
+
+def test_approval_screen_shows_that_a_call_is_already_approved(tmp_path):
+    approvals, server, url = serve(tmp_path)
+    hold = approvals.record_hold("send_payment", PAY, "held")
+    base, token = url.split("/?token=")
+    try:
+        assert "Approve this exact call once" in fetch(url)[1]
+        page = fetch(base + "/approve", {"token": token, "hold": hold})[1]
+        assert "Approve this exact call once" not in page and "Approved." in page and "Reject" in page
+    finally:
+        server.shutdown()
+
+
+def test_approval_screen_escapes_a_message_placed_in_its_address(tmp_path):
+    _approvals, server, url = serve(tmp_path)
+    try:
+        page = fetch(url + "&msg=" + "%3Cscript%3Ealert(1)%3C/script%3E")[1]
+        assert "<script>" not in page
     finally:
         server.shutdown()
 

@@ -74,10 +74,15 @@ class Approvals:
         path = self.pending / f"{hold_id}.json"
         if not path.exists():
             raise ValueError("no pending hold with that id; it may already be used")
+        # Cancel any earlier approval too. A person who changes their mind must actually stop the call.
+        (self.tokens / f"{hold_id}.json").unlink(missing_ok=True)
         os.replace(path, path.with_suffix(".denied"))
 
     def was_denied(self, hold_id: str) -> bool:
         return (self.pending / f"{hold_id}.denied").exists()
+
+    def approved_ids(self) -> set[str]:
+        return {path.stem for path in self.tokens.glob("*.json")}
 
     def consume(self, tool: str, args: dict, now: float | None = None) -> str | None:
         """Spend a valid token for this exact call. Returns its hold id, or None."""
