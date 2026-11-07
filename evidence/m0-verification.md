@@ -131,6 +131,18 @@ The organiser's invitation named sentinel-agent, so we read all of it. It has no
 
 **Mutation check.** The first run after the hard rules caught 58 of 61, finding two test gaps and one stale case. All three were fixed.
 
+## Proof and browser page, 7 Nov 2026
+
+**`holdpoint prove`** encodes a tool's rules for z3, and the model is compared with the real gate on random policies and calls. Every escape is replayed on the real gate. The model assumes pattern rules pass anything and the reviewer says yes to anything.
+
+**Found while building the proof:** a negative amount lowered the session total, and a large negative passed it. Fixed, with tests. The code at `heldout-v1` had no session totals, so the measured run is not affected.
+
+**Found by using the approval screen:** Approve then Reject did not cancel the approval, and a refresh after approving was unsafe. Both fixed, with tests.
+
+**Browser page.** It embeds the repo's gate files unchanged, and a test compares them. Checked in real Pyodide in the desktop app's built-in browser only: 24 of 24 ready-made moves matched, and injected HTML did not run.
+
+**Mutation check.** It now requires an unbroken copy to pass first, because a copy that fails for an unrelated reason would make every mutant look caught.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |

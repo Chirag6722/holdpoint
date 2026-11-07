@@ -10,7 +10,7 @@ The name comes from "hold point" in engineering quality control: a stage work ma
 
 ## For judges, start here
 
-[Evidence site](https://chirag6722.github.io/holdpoint/): the results, plus a grid where you can read every injection attack and the reviewer's reply.
+[Evidence site](https://chirag6722.github.io/holdpoint/): the results, every injection attack and the reviewer's reply, and [a page where you can break it yourself](https://chirag6722.github.io/holdpoint/#try). That page runs the real gate code in your browser, with your own rules and no key. It tests the fixed rules, not the reviewer.
 
 See it in 30 seconds, with no API keys:
 
@@ -80,6 +80,7 @@ python tests/mutation_check.py   # breaks each protection and confirms a test no
 |---|---|
 | Bypass suite | [tests/test_bypass.py](tests/test_bypass.py) |
 | What it defends against, and what it does not | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) |
+| Proving a limit for every possible call | [docs/PROVE.md](docs/PROVE.md) |
 | Facts, runs and corrections log | [evidence/m0-verification.md](evidence/m0-verification.md) |
 | How to reproduce every measurement | [bench/README.md](bench/README.md) |
 | Frozen development and held-out split | [bench/split.json](bench/split.json) |
@@ -324,6 +325,8 @@ After the measured run we tried to break the code ourselves. Each problem now ha
 | Reduction in wrongful irreversible actions | 25 to 6 of 89, at a cost of 17 should-act passes |
 | Human approval flow with real people | Mechanism tested, not evaluated with people |
 | Tests against real production systems | Not done; the benchmark and demo use sandboxes |
+| Proof of limits with `holdpoint prove` | Working, and compared with the real gate on random policies. It covers rules as written, one call at a time |
+| Break-it-yourself browser page | Working in the one browser tested, the desktop app's built-in one |
 | Local approval screen | Built and tested in code, not evaluated with people |
 | Auto tier, hard rules, duplicate guard, circuit breaker | Tested, not measured on the benchmark |
 

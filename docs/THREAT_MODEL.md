@@ -30,6 +30,7 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 | Control tool output and read replies | Forge facts until the reviewer agrees | **Not stopped by the reviewer: 2 of 18 attempts won.** A tool labelled `person`, or a call caught by a hard rule, never reaches the reviewer |
 | Control the agent | Split a large payment into small ones | A session total sends it to a person, if a rule is set |
 | Control the agent | Send a malformed or missing amount | Counts as matching the rule, so it does not pass |
+| Control the agent | Send a negative amount to lower a session total | Counted by size, so it does not open room |
 | Control the agent | Repeat a call that already ran, such as a payment after a timeout | Needs a person |
 | Control the agent | Keep retrying a tool that keeps failing | Needs a person after 3 failures |
 | Reach the approval screen from another website | Post an approval to localhost, or use a rebinding DNS name | Refused without the secret link and a local host name |
@@ -56,4 +57,4 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 
 ## How far this was tested
 
-The hard gate, signatures, log and fingerprints have no-key tests and a mutation check. The reviewer was measured on one model pair, once per task, and those numbers come from tag `heldout-v1`. Later fixes have tests but have not been measured on the benchmark. No outside party has audited this code, and it has not run against production systems.
+The hard gate, signatures, log and fingerprints have no-key tests and a mutation check. `holdpoint prove` covers limits over every value of a call's arguments, for rules as written, and its model is tested against the real gate on random policies. The proof and tests do not show the rules are the right ones. The reviewer was measured on one model pair, once per task, and those numbers come from tag `heldout-v1`. Later fixes have tests but have not been measured on the benchmark. No outside party has audited this code, and it has not run against production systems.

@@ -150,7 +150,7 @@ LIMITS = [
      "Give the agent no other route to the same system, and keep the credentials on the tool server's side."),
     ("The reviewer can be fooled", "It cannot tell forged tool output from real output. An attacker who read its replies beat it in 2 of 18 attempts, and a wrong \"proceed\" runs the call.",
      "Label your highest-stakes tools <code>person</code>, and set hard rules on amounts and recipients. Neither depends on the reviewer."),
-    ("Rules only cover what you wrote", "A $40 payment to an allowed person passes the rules, and can still be the wrong payment.",
+    ("Rules only cover what you wrote", "A $40 payment to an allowed person passes the rules, and can still be the wrong payment. A proof shows a limit holds, not that it is the right limit.",
      "Keep limits tight, use session totals so a payment cannot be split, and let the reviewer judge what is left."),
     ("Wrong holds cost real work", "On held-out tasks the gate lost 17 should-act passes.",
      "Route holds to someone who can approve them quickly. That flow is built, but it has not been tested with real people."),
@@ -388,6 +388,8 @@ pytest -q
 python tests/mutation_check.py</pre>
 <p>See five support tickets handled by fixed rules alone, where the scripted agent obeys an injected ticket and keeps retrying a failing payment. It uses no model.</p>
 <pre class="terminal">python examples/support_demo.py</pre>
+<p>Prove a limit for every possible call. Loosen a rule, and you get the exact call that escapes. This covers the rules as written, not whether an agent is safe. {link('docs/PROVE.md', 'What it assumes')}.</p>
+<pre class="terminal">holdpoint prove examples/shop_policy.yaml --tool issue_refund --never "amount > 500" --even-with-approval</pre>
 <p>Approve or reject held calls on a local screen, opened with a secret link. It has not been evaluated with real people.</p>
 <pre class="terminal">holdpoint --state-dir ./state serve</pre>
 <div class="actions"><a class="btn primary" href="https://github.com/Chirag6722/holdpoint">Read the code</a>{link_button('bench/README.md', 'Reproduce every measurement')}</div></div></section>
