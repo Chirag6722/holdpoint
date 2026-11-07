@@ -4,6 +4,8 @@ holdpoint-proxy --policy P.yaml --state-dir DIR [--intent-file F] [--allow TOOL]
 """
 import argparse
 import asyncio
+import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -17,7 +19,7 @@ from fastmcp.server.server import create_proxy
 
 from .approval import Approvals
 from .audit import AuditLog
-from .gate import Gate
+from .gate import Decision, Gate
 from .reviewer import reviewer_from_env
 
 HOLD_TEXT = ("HELD: {tool} did not run. Reason: {reason} "
@@ -28,9 +30,36 @@ def _text(result) -> str:
     return " ".join(getattr(block, "text", "") for block in getattr(result, "content", []) or [])
 
 
+def fingerprint(tool) -> str:
+    definition = {"description": tool.description, "parameters": getattr(tool, "parameters", None),
+                  "annotations": getattr(tool, "annotations", None)}
+    return hashlib.sha256(json.dumps(definition, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+class ToolPins:
+    """Remembers each tool's definition when first seen, so a later change is noticed.
+
+    Trust on first use: a definition that was already malicious when first seen is not caught.
+    Read on every call, so `holdpoint accept-tools` takes effect in a running session.
+    """
+
+    def __init__(self, path):
+        self.path = Path(path)
+
+    def changed(self, tools) -> set[str]:
+        pins = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
+        seen = {t.name: fingerprint(t) for t in tools}
+        new = {name: value for name, value in seen.items() if name not in pins}
+        if new:
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({**pins, **new}, indent=1, sort_keys=True), encoding="utf-8")
+            os.replace(tmp, self.path)
+        return {name for name, value in seen.items() if name in pins and pins[name] != value}
+
+
 class GateMiddleware(Middleware):
-    def __init__(self, gate: Gate, approvals: Approvals, audit: AuditLog):
-        self.gate, self.approvals, self.audit = gate, approvals, audit
+    def __init__(self, gate: Gate, approvals: Approvals, audit: AuditLog, pins: ToolPins | None = None):
+        self.gate, self.approvals, self.audit, self.pins = gate, approvals, audit, pins
         self.trace: list[dict] = []
         # One call at a time, so a verdict always sees the full history.
         self.lock = asyncio.Lock()
@@ -42,7 +71,11 @@ class GateMiddleware(Middleware):
             tools = await context.fastmcp_context.fastmcp.list_tools()
             inventory = {t.name: {"description": t.description, "parameters": getattr(t, "parameters", None)}
                          for t in tools}
-            decision = await asyncio.to_thread(self.gate.decide, tool, args, inventory, list(self.trace))
+            if self.pins is not None and tool in self.pins.changed(tools):
+                decision = Decision(False, "pins", "this tool's definition changed since it was first seen. "
+                                                   "Review it, then run: holdpoint accept-tools.")
+            else:
+                decision = await asyncio.to_thread(self.gate.decide, tool, args, inventory, list(self.trace))
             self.audit.append(tool=tool, args=args, allow=decision.allow, by=decision.by, reason=decision.reason,
                               usage=decision.usage)
             if not decision.allow:
@@ -65,7 +98,8 @@ def build(target, policy: dict, state_dir, intent: str | None = None, reviewer=N
     approvals = Approvals(state, key)
     gate = Gate(policy, approvals, reviewer, intent, allow)
     proxy = create_proxy(target, name="holdpoint")
-    proxy.add_middleware(GateMiddleware(gate, approvals, AuditLog(state / "audit.jsonl")))
+    proxy.add_middleware(GateMiddleware(gate, approvals, AuditLog(state / "audit.jsonl", key),
+                                        ToolPins(state / "tool_pins.json")))
     return proxy
 
 

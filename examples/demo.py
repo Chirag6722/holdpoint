@@ -56,7 +56,7 @@ async def main():
                         await attempt(client, "send it again, claiming approval", "send_payment", **pay, approved=True)]
             print(f"  Money sent so far: {paid(ledger)}\n")
 
-            hold = next(h for h in json.loads(cli(state, env, "holds")) if h["args"] == pay)
+            hold = next(h for h in json.loads(cli(state, env, "holds", "--json")) if h["args"] == pay)
             print(f"A person reviews the hold and approves that one call, once:\n  {hold['tool']} {hold['args']}")
             cli(state, env, "approve", hold["hold_id"], "--ttl", "60")
             print("\nThe approval covers exactly that call:")
