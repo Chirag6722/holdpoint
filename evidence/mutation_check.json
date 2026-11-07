@@ -12,6 +12,62 @@
   "status": "caught"
  },
  {
+  "mutant": "deny rule ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "person rule ignored",
+  "status": "caught"
+ },
+ {
+  "mutant": "rules skipped on safe labels",
+  "status": "caught"
+ },
+ {
+  "mutant": "mapping without label is safe",
+  "status": "caught"
+ },
+ {
+  "mutant": "bad rules start anyway",
+  "status": "caught"
+ },
+ {
+  "mutant": "missing amount counts as small",
+  "status": "caught"
+ },
+ {
+  "mutant": "true counts as a number",
+  "status": "caught"
+ },
+ {
+  "mutant": "list check off",
+  "status": "caught"
+ },
+ {
+  "mutant": "pattern ignores other arguments",
+  "status": "caught"
+ },
+ {
+  "mutant": "session total off",
+  "status": "caught"
+ },
+ {
+  "mutant": "session total not counted",
+  "status": "caught"
+ },
+ {
+  "mutant": "session total lost on restart",
+  "status": "caught"
+ },
+ {
+  "mutant": "milder rule wins",
+  "status": "caught"
+ },
+ {
+  "mutant": "floor refusal waits for a person",
+  "status": "caught"
+ },
+ {
   "mutant": "held call reviewed again",
   "status": "caught"
  },
@@ -45,7 +101,7 @@
  },
  {
   "mutant": "hold id not checked",
-  "status": "caught"
+  "status": "NOT APPLIED"
  },
  {
   "mutant": "used hold stays pending",
@@ -89,6 +145,70 @@
  },
  {
   "mutant": "approval clears a changed tool",
+  "status": "caught"
+ },
+ {
+  "mutant": "auto runs with no rules",
+  "status": "caught"
+ },
+ {
+  "mutant": "auto ignores its person rule",
+  "status": "caught"
+ },
+ {
+  "mutant": "same call runs twice",
+  "status": "caught"
+ },
+ {
+  "mutant": "executed calls forgotten on restart",
+  "status": "caught"
+ },
+ {
+  "mutant": "repeated reads blocked",
+  "status": "SURVIVED"
+ },
+ {
+  "mutant": "circuit breaker off",
+  "status": "caught"
+ },
+ {
+  "mutant": "breaker counts every tool",
+  "status": "caught"
+ },
+ {
+  "mutant": "rejected hold can be approved",
+  "status": "caught"
+ },
+ {
+  "mutant": "rejected id not checked",
+  "status": "caught"
+ },
+ {
+  "mutant": "waiting ignores a rejection",
+  "status": "caught"
+ },
+ {
+  "mutant": "success outcome not logged",
+  "status": "caught"
+ },
+ {
+  "mutant": "failure outcome not logged",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen needs no secret",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen answers any host",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen does not escape",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen hides the reject",
   "status": "caught"
  },
  {

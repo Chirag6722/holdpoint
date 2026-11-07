@@ -13,9 +13,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 MUTANTS = [
-    ("commit tools not gated", "gate.py", "return self.policy.get(tool) not in SAFE_LABELS", "return False"),
-    ("unknown tools treated as safe", "gate.py", "self.policy.get(tool) not in", 'self.policy.get(tool, "lookup") not in'),
-    ("mistyped labels pass", "gate.py", "self.policy.get(tool) not in SAFE_LABELS", 'self.policy.get(tool, "commit") == "commit"'),
+    ("commit tools not gated", "gate.py", "return rules.label_of(self.policy.get(tool)) not in SAFE_LABELS", "return False"),
+    ("unknown tools treated as safe", "gate.py", "rules.label_of(self.policy.get(tool)) not in SAFE_LABELS",
+     'rules.label_of(self.policy.get(tool, "lookup")) not in SAFE_LABELS'),
+    ("mistyped labels pass", "gate.py", "rules.label_of(self.policy.get(tool)) not in SAFE_LABELS",
+     'rules.label_of(self.policy.get(tool, "commit")) == "commit"'),
+    ("deny rule ignored", "gate.py", 'if ruling and ruling[0] == "deny":', "if False:"),
+    ("person rule ignored", "gate.py", 'if ruling:\n            return Decision(False, "rules"', 'if False:\n            return Decision(False, "rules"'),
+    ("rules skipped on safe labels", "gate.py", "if not ruling and not self.is_commit(tool):", "if not self.is_commit(tool):"),
+    ("mapping without label is safe", "rules.py", 'entry.get("label", "commit")', 'entry.get("label", "lookup")'),
+    ("bad rules start anyway", "proxy.py", "    validate_rules(policy)\n", ""),
+    ("missing amount counts as small", "rules.py", 'return not _within(value, rule["over"])', 'return _is_number(value) and value > rule["over"]'),
+    ("true counts as a number", "rules.py", "and not isinstance(value, bool)", ""),
+    ("list check off", "rules.py", 'return value not in rule["not_in"]', "return False"),
+    ("pattern ignores other arguments", "rules.py", 'json.dumps(args, default=str) if rule["arg"] == "*" else ', ""),
+    ("session total off", "rules.py", 'if not _is_number(value) or not _within(spent + value, total["over"]):', "if False:"),
+    ("session total not counted", "gate.py", "self.totals[tool] += amount", "pass"),
+    ("session total lost on restart", "gate.py", 'self.totals = Counter(saved["totals"])', "pass"),
+    ("milder rule wins", "rules.py", "return max(hits,", "return min(hits,"),
+    ("floor refusal waits for a person", "proxy.py", '("pins", "labels", "floor")', '("pins", "labels")'),
     ("held call reviewed again", "gate.py", "if digest in self.review_held:", "if False:"),
     ("no limit on repeated holds", "gate.py", "if self.review_holds[tool] >= MAX_REVIEW_HOLDS_PER_TOOL:", "if False:"),
     ("review outage sticks", "gate.py", 'return Decision(False, "reviewer", f"review unavailable: {type(exc).__name__}")',
@@ -28,9 +44,13 @@ MUTANTS = [
     ("saved hash ignored", "audit.py", "if expect and not seen:", "if False:"),
     ("edited hold approved", "approval.py",
      'if not hmac.compare_digest(str(record.get("mac")), self._hold_mac(hold_id, record["tool"], record["args"])):', "if False:"),
-    ("hold id not checked", "approval.py", "if not HOLD_ID.fullmatch(hold_id):", "if False:"),
+    ("hold id not checked", "approval.py",
+     'if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n'
+     '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record',
+     'path = self.pending / f"{hold_id}.json"\n'
+     '        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        record'),
     ("used hold stays pending", "approval.py", 'os.replace(hold, hold.with_suffix(".used"))', "pass"),
-    ("person label goes to the reviewer", "gate.py", "if self.reviewer is None or self.policy.get(tool) == PERSON_LABEL:",
+    ("person label goes to the reviewer", "gate.py", "if self.reviewer is None or rules.label_of(self.policy.get(tool)) == PERSON_LABEL:",
      "if self.reviewer is None:"),
     ("retry limits lost on restart", "gate.py", 'if saved["request"] == self._request_id():', "if False:"),
     ("retry limits survive a new request", "gate.py", 'if saved["request"] == self._request_id():', "if True:"),
@@ -41,7 +61,23 @@ MUTANTS = [
     ("nothing waits for a person", "proxy.py", "while time.monotonic() < deadline:", "while False:"),
     ("waiting call runs without approval", "proxy.py", "if self.approvals.consume(tool, args):\n                return True",
      "if True:\n                return True"),
-    ("approval clears a changed tool", "proxy.py", 'if decision.by in ("pins", "labels") or not await', "if not await"),
+    ("approval clears a changed tool", "proxy.py", 'if decision.by in ("pins", "labels", "floor") or not await', "if not await"),
+    ("auto runs with no rules", "rules.py", 'if label_of(entry) == AUTO_LABEL and not (', "if False and not ("),
+    ("auto ignores its person rule", "gate.py", 'if ruling:\n            return Decision(False, "rules"', 'if ruling and rules.label_of(self.policy.get(tool)) != rules.AUTO_LABEL:\n            return Decision(False, "rules"'),
+    ("same call runs twice", "gate.py", "if digest in self.executed:", "if False:"),
+    ("executed calls forgotten on restart", "gate.py", 'self.executed = set(saved["executed"])', "pass"),
+    ("repeated reads blocked", "gate.py", "        if self.is_commit(tool):\n            # Counted", "        if True:\n            # Counted"),
+    ("circuit breaker off", "gate.py", 'if sum(e["tool"] == tool and not e["ok"] for e in trace) >= MAX_TOOL_FAILURES:', "if False:"),
+    ("breaker counts every tool", "gate.py", 'e["tool"] == tool and not e["ok"]', 'not e["ok"]'),
+    ("rejected hold can be approved", "approval.py", 'os.replace(path, path.with_suffix(".denied"))', "pass"),
+    ("rejected id not checked", "approval.py", 'if not HOLD_ID.fullmatch(hold_id):\n            raise ValueError("not a hold id")\n        path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        os.replace', 'path = self.pending / f"{hold_id}.json"\n        if not path.exists():\n            raise ValueError("no pending hold with that id; it may already be used")\n        os.replace'),
+    ("waiting ignores a rejection", "proxy.py", "if self.approvals.was_denied(hold_id):\n                return False", "if False:\n                return False"),
+    ("success outcome not logged", "proxy.py", 'self.audit.append(tool=tool, by="outcome", allow=True, ok=ok)', "pass"),
+    ("failure outcome not logged", "proxy.py", 'self.audit.append(tool=tool, by="outcome", allow=True, ok=False)', "pass"),
+    ("screen needs no secret", "approve_ui.py", "and hmac.compare_digest(supplied.encode(), token.encode())", ""),
+    ("screen answers any host", "approve_ui.py", 'return host in ("127.0.0.1", "localhost") and', "return"),
+    ("screen does not escape", "approve_ui.py", "html.escape(str(text), quote=True)", "str(text)"),
+    ("screen hides the reject", "approve_ui.py", "approvals.deny(hold)", "pass"),
     ("changed tool definitions run", "proxy.py", "tool in self.pins.changed(tools)", "False"),
     ("description left out of fingerprint", "proxy.py", '{"description": tool.description, "parameters"', '{"parameters"'),
     ("drafted policy trusts server hints", "cli.py", 'f"{json.dumps(t.name)}: commit{note}"',
@@ -53,7 +89,7 @@ MUTANTS = [
      'return Decision(True, "gate")'),
     ("reviewer failure allows", "gate.py", 'return Decision(False, "reviewer", f"review unavailable: {type(exc).__name__}")',
      'return Decision(True, "reviewer")'),
-    ("reviewer hold ignored", "gate.py", 'return Decision(proceed, "reviewer", reason, ', 'return Decision(True, "reviewer", reason, '),
+    ("reviewer hold ignored", "gate.py", 'return Decision(False, "reviewer", reason, ', 'return Decision(True, "reviewer", reason, '),
     ("signature not checked", "approval.py", "good = hmac.compare_digest(t[\"mac\"], self._mac(t[\"hold_id\"], t[\"digest\"], t[\"expires\"]))",
      "good = True"),
     ("expiry not checked", "approval.py", 'fresh = float(t["expires"]) > now', "fresh = True"),
@@ -96,6 +132,8 @@ def main():
             shutil.copytree(ROOT / "holdpoint", work / "holdpoint")
             shutil.copytree(ROOT / "tests", work / "tests")
             shutil.copytree(ROOT / "examples", work / "examples")
+            # Without this, a test that reads saved evidence fails in every copy and every mutant looks caught.
+            shutil.copytree(ROOT / "evidence", work / "evidence")
             path = work / "holdpoint" / file
             src = path.read_text(encoding="utf-8").replace("\r\n", "\n")
             if src.count(old) != 1:

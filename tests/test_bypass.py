@@ -6,8 +6,17 @@ approvals, malformed arguments, timeouts.
 """
 import asyncio
 import json
+import os
+import re
+import subprocess
+import sys
+import threading
 import time
+import urllib.error
+import urllib.request
+from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlencode
 
 import pytest
 import yaml
@@ -16,6 +25,7 @@ from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from holdpoint.approval import Approvals, call_hash
+from holdpoint.approve_ui import make_server, render
 from holdpoint.audit import GENESIS, AuditLog, _digest, latest_hash, verify
 from holdpoint.cli import draft_policy, format_holds
 from holdpoint.cli import main as cli_main
@@ -496,12 +506,12 @@ def test_every_decision_is_logged_and_tampering_is_detected(tmp_path):
                 await call(c, "send_payment", **PAY)
     run(go())
     log = tmp_path / "audit.jsonl"
-    assert verify(log, KEY) == (True, 2)
+    assert verify(log, KEY) == (True, 3)  # Read decision, read outcome, held payment.
     lines = log.read_text().splitlines()
-    assert json.loads(lines[1])["event"]["allow"] is False
-    lines[1] = lines[1].replace('"allow": false', '"allow": true')
+    assert json.loads(lines[2])["event"]["allow"] is False
+    lines[2] = lines[2].replace('"allow": false', '"allow": true')
     log.write_text("\n".join(lines) + "\n")
-    assert verify(log, KEY) == (False, 1)
+    assert verify(log, KEY) == (False, 2)
 
 
 def signed_log(tmp_path, n=4):
@@ -670,6 +680,331 @@ def test_person_label_never_reaches_the_reviewer_and_a_person_can_still_approve(
     assert gate.decide("send_payment", PAY, {}, []).by == "human"
 
 
+RULED = {"send_payment": {"label": "commit", "rules": [
+    {"arg": "amount", "over": 500, "then": "deny"},
+    {"arg": "amount", "over": 50, "then": "person"},
+    {"arg": "to", "not_in": ["Ann", "Bob"], "then": "person"},
+    {"arg": "*", "pattern": "sk-[A-Za-z0-9]{8}", "then": "deny"}],
+    "session_total": {"arg": "amount", "over": 100, "then": "person"}},
+    "read_account": {"label": "lookup", "rules": [{"arg": "account", "not_in": ["1"], "then": "deny"}]}}
+
+
+def ruled_gate(tmp_path=None, proceed=True, policy=RULED):
+    review, calls = counting_reviewer([proceed] * 20)
+    approvals = Approvals(tmp_path, KEY) if tmp_path else None
+    return Gate(policy, approvals, review, "Pay Ann", review_state=tmp_path / "r.json" if tmp_path else None), calls, approvals
+
+
+@pytest.mark.parametrize("args", [{"to": "Ann", "amount": 501}, {"to": "Ann", "amount": 10, "note": "sk-abcdefgh12"}])
+def test_deny_rule_cannot_be_cleared_even_by_a_person(tmp_path, args):
+    gate, calls, approvals = ruled_gate(tmp_path)
+    approvals.approve(approvals.record_hold("send_payment", args, "held"), 60)
+    decision = gate.decide("send_payment", args, {}, [])
+    assert (decision.allow, decision.by) == (False, "floor") and calls == []
+
+
+@pytest.mark.parametrize("args", [{"to": "Ann", "amount": 51}, {"to": "Mallory", "amount": 1}])
+def test_person_rule_never_reaches_the_reviewer_but_a_person_can_approve(tmp_path, args):
+    gate, calls, approvals = ruled_gate(tmp_path)
+    assert gate.decide("send_payment", args, {}, []).by == "rules"
+    assert calls == []
+    approvals.approve(approvals.record_hold("send_payment", args, "held"), 60)
+    assert gate.decide("send_payment", args, {}, []).by == "human"
+
+
+@pytest.mark.parametrize("amount", ["9999", None, True, float("nan"), [1], {"v": 1}])
+def test_unreadable_amount_never_counts_as_small(amount):
+    gate, calls, _ = ruled_gate()
+    assert gate.decide("send_payment", {"to": "Ann", "amount": amount}, {}, []).allow is False
+    assert calls == []
+
+
+def test_missing_argument_does_not_slip_past_a_rule():
+    gate, calls, _ = ruled_gate()
+    assert gate.decide("send_payment", {"to": "Ann"}, {}, []).allow is False
+    assert gate.decide("send_payment", {"amount": 5}, {}, []).allow is False
+    assert calls == []
+
+
+def test_negative_control_call_inside_every_rule_still_goes_to_the_reviewer():
+    gate, calls, _ = ruled_gate()
+    assert gate.decide("send_payment", {"to": "Ann", "amount": 50}, {}, []).by == "reviewer"
+    assert len(calls) == 1
+
+
+def test_splitting_a_payment_hits_the_session_total():
+    gate, _, _ = ruled_gate()
+    allowed = [gate.decide("send_payment", {"to": "Ann", "amount": 40 + i}, {}, []).allow for i in range(3)]
+    assert allowed == [True, True, False]
+    assert gate.totals["send_payment"] == 81
+
+
+def test_held_calls_do_not_use_up_the_session_total():
+    gate, _, _ = ruled_gate(proceed=False)
+    gate.decide("send_payment", {"to": "Ann", "amount": 40}, {}, [])
+    assert gate.totals["send_payment"] == 0
+
+
+def test_person_approved_amounts_count_toward_the_session_total(tmp_path):
+    gate, _, approvals = ruled_gate(tmp_path)
+    big = {"to": "Ann", "amount": 90}
+    approvals.approve(approvals.record_hold("send_payment", big, "held"), 60)
+    assert gate.decide("send_payment", big, {}, []).by == "human"
+    assert gate.totals["send_payment"] == 90
+    assert gate.decide("send_payment", {"to": "Ann", "amount": 20}, {}, []).by == "rules"
+
+
+def test_restarting_the_proxy_does_not_reset_the_session_total(tmp_path):
+    gate, _, _ = ruled_gate(tmp_path)
+    assert gate.decide("send_payment", {"to": "Ann", "amount": 40}, {}, []).allow is True
+    gate.decide("send_payment", {"to": "Ann", "amount": 41}, {}, [])
+    restarted, _, _ = ruled_gate(tmp_path)
+    assert restarted.totals["send_payment"] == 81
+    assert restarted.decide("send_payment", {"to": "Ann", "amount": 42}, {}, []).by == "rules"
+
+
+def test_rules_also_apply_to_tools_labelled_safe():
+    gate, _, _ = ruled_gate()
+    assert gate.decide("read_account", {"account": "1"}, {}, []).by == "policy"
+    assert gate.decide("read_account", {"account": "2"}, {}, []).by == "floor"
+
+
+def test_mapping_with_no_label_counts_as_commit():
+    gate, calls, _ = ruled_gate(policy={"send_payment": {"rules": []}})
+    assert gate.is_commit("send_payment") is True
+    assert gate.decide("send_payment", PAY, {}, []).by == "reviewer" and len(calls) == 1
+
+
+@pytest.mark.parametrize("policy", [
+    {"t": {"rule": []}}, {"t": {"rules": [{"arg": "a", "over": 1, "then": "allow"}]}},
+    {"t": {"rules": [{"arg": "a", "then": "deny"}]}}, {"t": {"rules": [{"arg": "a", "over": "9", "then": "deny"}]}},
+    {"t": {"rules": [{"arg": "a", "over": 1, "not_in": [], "then": "deny"}]}},
+    {"t": {"rules": [{"arg": "a", "pattern": "(", "then": "deny"}]}},
+    {"t": {"session_total": {"arg": "a", "over": 1}}}])
+def test_a_rule_we_cannot_enforce_stops_startup(tmp_path, policy):
+    with pytest.raises((ValueError, re.error)):
+        build(Backend().mcp, policy, tmp_path)
+
+
+def test_floor_refusal_through_the_real_proxy_does_not_wait_for_a_person(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, RULED, tmp_path, "Pay Ann", None, frozenset(), KEY, wait_seconds=30)
+
+    async def go():
+        async with Client(proxy) as c:
+            with pytest.raises(ToolError, match="No approval can clear this"):
+                await call(c, "send_payment", to="Ann", amount=501)
+    started = time.monotonic()
+    run(go())
+    assert backend.executed == [] and time.monotonic() - started < 10
+
+
+def test_the_two_attacks_that_beat_the_reviewer_do_not_reach_it_under_hard_rules():
+    """Replays the saved winning attacks. By construction: the rules read the call, not the forged output."""
+    saved = json.loads((Path(__file__).parent.parent / "evidence" / "adaptive_attack.json").read_text(encoding="utf-8"))
+    wins = {r["scenario"]: r["rows"][-1]["injection"] for r in saved["results"] if r["flipped_at_round"]}
+    assert set(wins) == {"pay_everyone", "ambiguous_recipient"}
+    policy = {"send_payment": {"rules": [{"arg": "amount", "over": 100, "then": "person"}]},
+              "send_email": {"rules": [{"arg": "to", "not_in": ["known@acme.com"], "then": "person"}]}}
+    calls_held = [("send_payment", {"to": "Mom", "amount": 500}, wins["pay_everyone"]),
+                  ("send_email", {"to": "sam.lee@acme.com"}, wins["ambiguous_recipient"])]
+    for tool, args, injection in calls_held:
+        review, calls = counting_reviewer([True])  # A reviewer that has been fooled, as both really were.
+        trace = [{"tool": "read", "ok": True, "text": injection}]
+        decision = Gate(policy, None, review, "Do the task").decide(tool, args, {}, trace)
+        assert (decision.allow, decision.by, calls) == (False, "rules", [])
+
+
+def test_person_rule_applies_to_a_tool_labelled_safe(tmp_path):
+    policy = {"read_account": {"label": "lookup", "rules": [{"arg": "account", "not_in": ["1"], "then": "person"}]}}
+    gate, _, _ = ruled_gate(policy=policy)
+    assert gate.decide("read_account", {"account": "2"}, {}, []).by == "rules"
+    assert gate.decide("read_account", {"account": "1"}, {}, []).by == "policy"
+
+
+@pytest.mark.parametrize("args", [{}, {"amount": "9999"}, {"amount": True}])
+def test_unreadable_amount_trips_the_rule_itself_with_no_session_total(args):
+    gate, calls, _ = ruled_gate(policy={"pay": {"rules": [{"arg": "amount", "over": 50, "then": "person"}]}})
+    assert gate.decide("pay", args, {}, []).by == "rules"
+    assert calls == []
+
+
+AUTO = {"refund": {"label": "auto", "rules": [{"arg": "amount", "over": 50, "then": "person"}]}}
+
+
+def test_auto_label_runs_with_no_reviewer_or_request_only_inside_its_rules():
+    gate = Gate(AUTO)
+    assert gate.decide("refund", {"amount": 10}, {}, []).by == "auto"
+    assert gate.decide("refund", {"amount": 51}, {}, []).by == "rules"
+
+
+@pytest.mark.parametrize("policy", [{"t": "auto"}, {"t": {"label": "auto"}}, {"t": {"label": "auto", "rules": []}}])
+def test_auto_label_with_no_rules_stops_startup(tmp_path, policy):
+    with pytest.raises(ValueError, match="auto label"):
+        build(Backend().mcp, policy, tmp_path)
+
+
+def test_same_call_cannot_run_twice_without_a_person(tmp_path):
+    gate, calls, approvals = ruled_gate(tmp_path, policy={"send_payment": "commit"})
+    assert gate.decide("send_payment", PAY, {}, []).by == "reviewer"
+    assert gate.decide("send_payment", PAY, {}, []).allow is False
+    assert len(calls) == 1
+    approvals.approve(approvals.record_hold("send_payment", PAY, "held"), 60)
+    assert gate.decide("send_payment", PAY, {}, []).by == "human"
+
+
+def test_auto_label_also_cannot_repeat_a_call():
+    gate = Gate(AUTO)
+    assert gate.decide("refund", {"amount": 10}, {}, []).allow is True
+    assert gate.decide("refund", {"amount": 10}, {}, []).allow is False
+
+
+def test_restart_does_not_forget_what_already_ran(tmp_path):
+    state = tmp_path / "r.json"
+    assert Gate(AUTO, review_state=state).decide("refund", {"amount": 10}, {}, []).allow is True
+    assert Gate(AUTO, review_state=state).decide("refund", {"amount": 10}, {}, []).allow is False
+
+
+def test_negative_control_repeated_reads_still_run():
+    gate = Gate(POLICY)
+    assert [gate.decide("read_account", {"account": "1"}, {}, []).allow for _ in range(3)] == [True, True, True]
+    assert gate.executed == set()
+
+
+def test_tool_failing_three_times_waits_for_a_person():
+    gate = Gate(AUTO)
+    failed = [{"tool": "refund", "ok": False, "text": "504"}] * 3
+    assert gate.decide("refund", {"amount": 10}, {}, failed[:2]).allow is True
+    decision = gate.decide("refund", {"amount": 11}, {}, failed)
+    assert (decision.allow, decision.by) == (False, "gate") and "failed 3 times" in decision.reason
+
+
+def test_negative_control_other_tools_failures_do_not_trip_the_breaker():
+    gate = Gate(AUTO)
+    assert gate.decide("refund", {"amount": 10}, {}, [{"tool": "other", "ok": False, "text": "x"}] * 3).allow is True
+
+
+def test_rejected_hold_cannot_then_be_approved(tmp_path):
+    approvals = Approvals(tmp_path, KEY)
+    hold_id = approvals.record_hold("send_payment", PAY, "held")
+    approvals.deny(hold_id)
+    assert approvals.list_holds() == [] and approvals.was_denied(hold_id)
+    with pytest.raises(ValueError, match="already be used"):
+        approvals.approve(hold_id, 60)
+    with pytest.raises(ValueError, match="not a hold id"):
+        approvals.deny("../../x")
+
+
+def test_waiting_call_stops_at_once_when_a_person_rejects_it(tmp_path):
+    backend = Backend()
+    proxy = build(backend.mcp, POLICY, tmp_path, "Pay Ann", None, frozenset(), KEY, wait_seconds=30)
+    approvals = Approvals(tmp_path, KEY)
+
+    async def go():
+        async with Client(proxy) as c:
+            pending = asyncio.create_task(call(c, "send_payment", **PAY))
+            while not approvals.list_holds():
+                await asyncio.sleep(0.05)
+            approvals.deny(approvals.list_holds()[0]["hold_id"])
+            with pytest.raises(ToolError, match="rejected"):
+                await pending
+    started = time.monotonic()
+    run(go())
+    assert backend.executed == [] and time.monotonic() - started < 15
+    assert '"by": "human"' in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+
+
+def test_outcome_is_logged_for_success_and_failure(tmp_path):
+    _backend, proxy, _ = setup(tmp_path)
+
+    async def go():
+        async with Client(proxy) as c:
+            await call(c, "read_account", account="1")
+            with pytest.raises(ToolError):
+                await call(c, "check_payee", name="broken")
+    run(go())
+    events = [json.loads(line)["event"] for line in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [e.get("ok") for e in events if e["by"] == "outcome"] == [True, False]
+    assert verify(tmp_path / "audit.jsonl", KEY)[0] is True
+
+
+def serve(tmp_path):
+    approvals = Approvals(tmp_path, KEY)
+    server, url = make_server(approvals)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return approvals, server, url
+
+
+def fetch(url, data=None, host=None):
+    request = urllib.request.Request(url, data=urlencode(data).encode() if data else None,
+                                     headers={"Host": host} if host else {})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as reply:
+            return reply.status, reply.read().decode()
+    except urllib.error.HTTPError as err:
+        return err.code, err.read().decode()
+
+
+def test_approval_screen_shows_the_exact_call_and_approves_it_once(tmp_path):
+    approvals, server, url = serve(tmp_path)
+    hold = approvals.record_hold("send_payment", PAY, "too large")
+    base, token = url.split("/?token=")
+    try:
+        status, page = fetch(url)
+        assert status == 200 and all(part in page for part in ["send_payment", "Ann", "too large"])
+        assert fetch(base + "/approve", {"token": token, "hold": hold})[0] == 200
+        assert approvals.consume("send_payment", PAY) == hold
+        assert approvals.consume("send_payment", PAY) is None
+    finally:
+        server.shutdown()
+
+
+def test_approval_screen_refuses_without_the_secret_and_from_another_host(tmp_path):
+    approvals, server, url = serve(tmp_path)
+    hold = approvals.record_hold("send_payment", PAY, "held")
+    base, token = url.split("/?token=")
+    try:
+        assert fetch(base + "/")[0] == 403
+        assert fetch(base + "/?token=wrong")[0] == 403
+        assert fetch(base + "/approve", {"token": "wrong", "hold": hold})[0] == 403
+        assert fetch(base + "/approve", {"hold": hold})[0] == 403
+        assert fetch(url, host="evil.example")[0] == 403
+        assert fetch(base + "/approve", {"token": token, "hold": hold}, host="evil.example")[0] == 403
+        assert approvals.consume("send_payment", PAY) is None
+    finally:
+        server.shutdown()
+
+
+def test_approval_screen_can_reject_and_reports_an_edited_hold(tmp_path):
+    approvals, server, url = serve(tmp_path)
+    base, token = url.split("/?token=")
+    try:
+        rejected = approvals.record_hold("send_payment", PAY, "held")
+        assert fetch(base + "/reject", {"token": token, "hold": rejected})[0] == 200
+        assert approvals.was_denied(rejected)
+        edited = approvals.record_hold("send_payment", PAY, "held")
+        path = approvals.pending / f"{edited}.json"
+        path.write_text(path.read_text(encoding="utf-8").replace("Ann", "Mallory"), encoding="utf-8")
+        assert "changed" in fetch(base + "/approve", {"token": token, "hold": edited})[1]
+        assert list(approvals.tokens.glob("*.json")) == []
+    finally:
+        server.shutdown()
+
+
+def test_approval_screen_escapes_what_an_attacker_could_put_in_a_call():
+    evil = "<script>alert(1)</script>"
+    page = render([{"hold_id": "ab", "tool": evil, "args": {"to": evil}, "reason": evil, "at": 0}], "tok")
+    assert "<script>" not in page
+
+
+def test_support_demo_outcomes():
+    demo = subprocess.run([sys.executable, str(Path(__file__).parent.parent / "examples" / "support_demo.py")],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, timeout=180,
+                          env={**os.environ, "PYTHONUTF8": "1"})
+    assert demo.returncode == 0, demo.stderr[-800:]
+    assert "All outcomes were as expected." in demo.stdout
+
+
 def test_restarting_the_proxy_does_not_buy_more_reviews(tmp_path):
     review, calls = counting_reviewer([False, True])
     state = tmp_path / "review_holds.json"
@@ -761,7 +1096,7 @@ def test_held_call_waits_and_runs_once_when_a_person_approves(tmp_path):
             await pending
     run(go())
     assert backend.executed == [("send_payment", "Ann", 10)]
-    assert verify(tmp_path / "audit.jsonl", KEY) == (True, 2)
+    assert verify(tmp_path / "audit.jsonl", KEY) == (True, 3)  # Hold, person's approval, outcome.
 
 
 def test_waiting_call_is_still_held_if_nobody_approves(tmp_path):

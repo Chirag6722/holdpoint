@@ -68,6 +68,17 @@ class Approvals:
                  "mac": self._mac(hold_id, digest, expires)}
         (self.tokens / f"{hold_id}.json").write_text(json.dumps(token), encoding="utf-8")
 
+    def deny(self, hold_id: str) -> None:
+        if not HOLD_ID.fullmatch(hold_id):
+            raise ValueError("not a hold id")
+        path = self.pending / f"{hold_id}.json"
+        if not path.exists():
+            raise ValueError("no pending hold with that id; it may already be used")
+        os.replace(path, path.with_suffix(".denied"))
+
+    def was_denied(self, hold_id: str) -> bool:
+        return (self.pending / f"{hold_id}.denied").exists()
+
     def consume(self, tool: str, args: dict, now: float | None = None) -> str | None:
         """Spend a valid token for this exact call. Returns its hold id, or None."""
         if self.key is None:

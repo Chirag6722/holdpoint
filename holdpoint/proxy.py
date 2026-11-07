@@ -22,6 +22,7 @@ from .approval import Approvals
 from .audit import AuditLog
 from .gate import Decision, Gate
 from .reviewer import reviewer_from_env
+from .rules import validate as validate_rules
 
 WAIT_POLL_SECONDS = 0.25
 HOLD_TEXT = ("HELD: {tool} did not run. Reason: {reason} "
@@ -88,10 +89,12 @@ class GateMiddleware(Middleware):
         # One call at a time, so a verdict always sees the full history.
         self.lock = asyncio.Lock()
 
-    async def _approved_while_waiting(self, tool: str, args: dict) -> bool:
+    async def _approved_while_waiting(self, tool: str, args: dict, hold_id: str) -> bool:
         # ponytail: holds the session's lock, so one waiting call blocks the rest of this session. Clients have their own timeouts.
         deadline = time.monotonic() + self.wait_seconds
         while time.monotonic() < deadline:
+            if self.approvals.was_denied(hold_id):
+                return False
             if self.approvals.consume(tool, args):
                 return True
             await asyncio.sleep(min(WAIT_POLL_SECONDS, self.wait_seconds))
@@ -120,22 +123,30 @@ class GateMiddleware(Middleware):
             if not decision.allow:
                 hold_id = self.approvals.record_hold(tool, args, decision.reason)
                 # Changed or mislabelled tools need a change to the setup, so a one-call approval cannot clear them.
-                if decision.by in ("pins", "labels") or not await self._approved_while_waiting(tool, args):
-                    raise ToolError(HOLD_TEXT.format(tool=tool, reason=decision.reason, hold_id=hold_id))
+                if decision.by in ("pins", "labels", "floor") or not await self._approved_while_waiting(tool, args, hold_id):
+                    reason = decision.reason
+                    if self.approvals.was_denied(hold_id):
+                        reason = "a person rejected this call. Do not retry it."
+                        self.audit.append(tool=tool, args=logged_args, allow=False, by="human", reason=f"rejected {hold_id}", usage=None)
+                    raise ToolError(HOLD_TEXT.format(tool=tool, reason=reason, hold_id=hold_id))
                 self.audit.append(tool=tool, args=logged_args, allow=True, by="human", reason=f"approval {hold_id}", usage=None)
             try:
                 result = await call_next(context)
             except Exception as exc:
                 self.trace.append({"tool": tool, "ok": False, "text": str(exc)})
+                self.audit.append(tool=tool, by="outcome", allow=True, ok=False)
                 raise
             ok = not getattr(result, "is_error", False)
             self.trace.append({"tool": tool, "ok": ok, "text": _text(result)})
+            # The decision is logged before the call and the outcome after, so a crash leaves the intent on record.
+            self.audit.append(tool=tool, by="outcome", allow=True, ok=ok)
             return result
 
 
 def build(target, policy: dict, state_dir, intent: str | None = None, reviewer=None,
           allow: frozenset = frozenset(), key: bytes | None = None, redact_args: frozenset = frozenset(),
           wait_seconds: float = 0):
+    validate_rules(policy)
     state = Path(state_dir)
     state.mkdir(parents=True, exist_ok=True)
     approvals = Approvals(state, key)

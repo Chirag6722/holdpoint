@@ -1,0 +1,14 @@
+# Small refunds run on their own. Larger ones wait for a person. Very large ones are refused.
+read_ticket: lookup
+issue_refund:
+  label: auto
+  rules:
+    - {arg: amount, over: 500, then: deny}
+    - {arg: amount, over: 50, then: person}
+    - {arg: order, not_in: [O-101, O-102, O-103, O-105], then: deny}
+  session_total: {arg: amount, over: 100, then: person}
+send_email:
+  label: auto
+  rules:
+    - {arg: to, not_in: [customer@shop.example], then: deny}
+    - {arg: "*", pattern: "\\b(?:\\d[ -]?){13,19}\\b", then: deny}

@@ -113,6 +113,24 @@ Each has tests and mutation cases, and none was measured on the benchmark.
 - `--redact` keeps named arguments out of the log. Holds still show them, so a person can judge the call.
 - `--wait-seconds` lets a held call wait for a person and then run.
 
+## Hard rules on arguments, 7 Nov 2026
+
+Added because both adaptive wins forged facts. The idea comes from sentinel-agent and Leash; the code was written fresh. The rules were designed after seeing the winning attacks, so the replay test shows the mechanism, and is not an independent measure. It holds by construction, and only for calls a rule covers.
+
+**Mutation check correction.** The replay test reads `evidence/`, which the mutation check did not copy. That test would have failed in every copy, making every mutant look caught, so `evidence/` is now copied.
+
+## What we took from sentinel-agent, 7 Nov 2026
+
+The organiser's invitation named sentinel-agent, so we read all of it. It has no licence and most of its commits are by Bhumika, so nothing was copied; the features here were written fresh.
+
+**Rejected after testing: its injection scanner.** Run offline against the 101 saved adaptive attacks, its patterns flagged 2, and neither of the 2 winners. They also flagged 3 of 6 harmless sample lines we wrote. This is a small exploratory check, not a measure of that project, which only uses the scanner to raise a risk level.
+
+**Built:** an auto tier, a circuit breaker, a tightened duplicate guard, a reject action, logged outcomes, a local approval screen, and a five-ticket demo with an agent that obeys the injection. None was measured on the benchmark.
+
+**Behaviour change:** the same commit call can no longer run twice in a session without a person, which the held-out code at `heldout-v1` allowed.
+
+**Mutation check.** The first run after the hard rules caught 58 of 61, finding two test gaps and one stale case. All three were fixed.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |

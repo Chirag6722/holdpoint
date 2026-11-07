@@ -11,6 +11,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
 from .approval import Approvals
+from .approve_ui import make_server
 from .audit import latest_hash, verify
 from .proxy import downstream_env, hint
 
@@ -62,6 +63,10 @@ def main(argv=None):
     vl = sub.add_parser("verify-log")
     vl.add_argument("--expect", help="a latest hash saved earlier, outside the state directory")
     sub.add_parser("accept-tools", help="trust the tool definitions as they are now")
+    rp = sub.add_parser("reject")
+    rp.add_argument("hold_id")
+    sv = sub.add_parser("serve", help="open a local approval screen")
+    sv.add_argument("--port", type=int, default=0)
     a = p.parse_args(argv)
     key = os.environ.get("HOLDPOINT_KEY")
     key = key.encode("utf-8") if key else None
@@ -83,6 +88,18 @@ def main(argv=None):
     if a.cmd == "holds":
         holds = approvals.list_holds()
         print(json.dumps(holds, indent=1) if a.json else format_holds(holds))
+    elif a.cmd == "serve":
+        if key is None:
+            sys.exit("set HOLDPOINT_KEY first: approvals cannot be signed without it")
+        server, url = make_server(approvals, a.port)
+        print(f"Open this link. It is secret, because it can approve calls:\n{url}", flush=True)
+        server.serve_forever()
+    elif a.cmd == "reject":
+        try:
+            approvals.deny(a.hold_id)
+        except ValueError as exc:
+            sys.exit(f"not rejected: {exc}")
+        print(f"rejected {a.hold_id}")
     else:
         try:
             approvals.approve(a.hold_id, a.ttl)

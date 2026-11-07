@@ -27,7 +27,12 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 | Control the agent | Replay an approval, or spend it in parallel | Runs once only |
 | Control the agent | Retry a held call until the reviewer says yes | Stays held; reviews are limited per tool |
 | Control tool output | Inject instructions aimed at the reviewer | Quoted as data. 0 of 60 attacks flipped a correct hold, on a fixed list we wrote |
-| Control tool output and read replies | Forge facts until the reviewer agrees | **Not stopped by the reviewer: 2 of 18 attempts won.** A tool labelled `person` never reaches the reviewer |
+| Control tool output and read replies | Forge facts until the reviewer agrees | **Not stopped by the reviewer: 2 of 18 attempts won.** A tool labelled `person`, or a call caught by a hard rule, never reaches the reviewer |
+| Control the agent | Split a large payment into small ones | A session total sends it to a person, if a rule is set |
+| Control the agent | Send a malformed or missing amount | Counts as matching the rule, so it does not pass |
+| Control the agent | Repeat a call that already ran, such as a payment after a timeout | Needs a person |
+| Control the agent | Keep retrying a tool that keeps failing | Needs a person after 3 failures |
+| Reach the approval screen from another website | Post an approval to localhost, or use a rebinding DNS name | Refused without the secret link and a local host name |
 | Control the tool server | Label a dangerous tool safe, while the server admits it is dangerous | Held |
 | Control the tool server | Change a tool's definition after first use | Held until a person accepts it |
 | Break the reviewer | Timeout, failure or malformed reply | Held |
@@ -39,7 +44,10 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 
 - **A route around MCP.** An agent with shell access or a raw API key can reach the system directly. Remove that route.
 - **A wrong label.** A destructive tool labelled `lookup` runs, unless its server admits it can change things.
-- **A wrong "proceed" from the reviewer.** Each one runs a real call, and forged tool output can cause one. Label your highest-stakes tools `person`.
+- **A wrong "proceed" from the reviewer.** Each one runs a real call, and forged tool output can cause one. Label your highest-stakes tools `person`, or add hard rules.
+- **A harmful call inside your rules.** Rules only cover what someone wrote down. A $40 payment to an allowed person can still be the wrong payment, and `label: auto` runs it with no second look.
+- **Rules that need live facts.** A policy file is fixed, so "only this customer's orders" needs a list written for that session.
+- **A leaked approval link.** Anyone on the machine with the link can approve calls, and it can appear in shell history or process output.
 - **A person approving something harmful.** Approval binds the exact call, not good judgement.
 - **A stolen signing key.** With it, an attacker can approve calls and rewrite the log.
 - **A rollback of the whole state folder.** This goes unnoticed unless you pass a hash saved elsewhere to `verify-log --expect`.

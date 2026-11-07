@@ -148,7 +148,9 @@ LIMITS = [
     ("The gate only sees MCP traffic", "An agent with shell access or a raw API key can go around it.",
      "Give the agent no other route to the same system, and keep the credentials on the tool server's side."),
     ("The reviewer can be fooled", "It cannot tell forged tool output from real output. An attacker who read its replies beat it in 2 of 18 attempts, and a wrong \"proceed\" runs the call.",
-     "Label your highest-stakes tools <code>person</code>. They always wait for a human and never reach the reviewer."),
+     "Label your highest-stakes tools <code>person</code>, and set hard rules on amounts and recipients. Neither depends on the reviewer."),
+    ("Rules only cover what you wrote", "A $40 payment to an allowed person passes the rules, and can still be the wrong payment.",
+     "Keep limits tight, use session totals so a payment cannot be split, and let the reviewer judge what is left."),
     ("Wrong holds cost real work", "On held-out tasks the gate lost 17 should-act passes.",
      "Route holds to someone who can approve them quickly. That flow is built, but it has not been tested with real people."),
     ("Your host must supply the request", "MCP does not carry the user's request, so without it every commit is held.",
@@ -179,7 +181,7 @@ def adaptive_section():
             f"<li><strong>{s['replays_that_proceeded']} of {s['replays_run']}</strong><b>Replays that worked again</b>These were not lucky one-offs.</li>"
             f"<li><strong>{s['successful_within_gate_limit']} of {s['successful_attempts']}</strong><b>Within the gate's retry limit</b>A tool waits for a person after 3 reviewer holds, which would have stopped the other one.</li></ul>"
             f"<div class='beatenlist'>{quotes}</div>"
-            "<p><strong>Why this matters.</strong> Neither attack gave the reviewer an order. Both forged facts, and the reviewer cannot tell forged tool output from real output. Better wording cannot fully fix that, so we added a safeguard that does not depend on a model: a tool labelled <code>person</code> always waits for a human and never reaches the reviewer.</p>"
+            "<p><strong>Why this matters.</strong> Neither attack gave the reviewer an order. Both forged facts, and the reviewer cannot tell forged tool output from real output. Better wording cannot fully fix that, so we added safeguards that do not depend on a model. A tool labelled <code>person</code> always waits for a human. Hard rules on a call's arguments, such as a payment limit or an allowed list of recipients, send it to a person or refuse it before any reviewer sees it. With those rules, both winning attacks stop, but only for calls someone wrote a rule for.</p>"
             f"<p class='source'>One attacker model, a small number of tries, and scenarios we wrote, so the true rate could be higher or lower. The reviewer's instructions were not changed. Source: {link('evidence/adaptive_attack.json', 'every attack and reply')}.</p></div></section>")
 
 
@@ -338,9 +340,13 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 python examples/demo.py
 pytest -q
 python tests/mutation_check.py</pre>
+<p>See five support tickets handled by fixed rules alone, where the scripted agent obeys an injected ticket and keeps retrying a failing payment. It uses no model.</p>
+<pre class="terminal">python examples/support_demo.py</pre>
+<p>Approve or reject held calls on a local screen, opened with a secret link. It has not been evaluated with real people.</p>
+<pre class="terminal">holdpoint --state-dir ./state serve</pre>
 <div class="actions"><a class="btn primary" href="https://github.com/Chirag6722/holdpoint">Read the code</a>{link_button('bench/README.md', 'Reproduce every measurement')}</div></div></section>
 </main>
-<footer class="night"><div class="wrap"><div class="foot"><p>{link('README.md', 'Read the full README')} or the {link('docs/THREAT_MODEL.md', 'threat model')}. MIT licensed. Measured on <a href="https://github.com/AntiQuality/agentabstain">AgentAbstain</a> (Liu et al., NeurIPS 2026).</p></div></div></footer>
+<footer class="night"><div class="wrap"><div class="foot"><p>{link('README.md', 'Read the full README')} or the {link('docs/THREAT_MODEL.md', 'threat model')}. MIT licensed. Measured on <a href="https://github.com/AntiQuality/agentabstain">AgentAbstain</a> (Liu et al., NeurIPS 2026). Hard limits, the auto tier and the support tickets follow ideas from earlier work on <a href="https://github.com/Chirag6722/sentinel-agent">sentinel-agent</a> and <a href="https://github.com/thegoodengineers/leash">Leash</a>.</p></div></div></footer>
 <script type="application/json" id="attack-data">{payload}</script>
 <script>{script}</script></body></html>
 """
