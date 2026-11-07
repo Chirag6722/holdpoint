@@ -427,6 +427,30 @@ def test_negative_control_required_tool_present_does_not_hold(tmp_path):
     assert len(backend.executed) == 1
 
 
+@pytest.mark.parametrize("intent", ["Refund it. Use `audit_ledger` first.", "Refund it. Run the audit_ledger tool first.",
+                                    "Refund it. Call audit_ledger first."])
+def test_required_tool_named_explicitly_still_holds(tmp_path, intent):
+    backend, proxy, _ = setup(tmp_path, always(True), intent=intent)
+
+    async def go():
+        async with Client(proxy) as c:
+            with pytest.raises(ToolError, match="audit_ledger"):
+                await call(c, "send_payment", **PAY)
+    run(go())
+    assert backend.executed == []
+
+
+def test_negative_control_payment_method_in_request_is_not_a_tool(tmp_path):
+    intent = "Refund the order. Use original_payment_method, or use store_credit if that fails."
+    backend, proxy, _ = setup(tmp_path, always(True), intent=intent)
+
+    async def go():
+        async with Client(proxy) as c:
+            await call(c, "send_payment", **PAY)
+    run(go())
+    assert len(backend.executed) == 1
+
+
 def test_negative_control_ids_in_request_are_not_treated_as_tools(tmp_path):
     intent = "Your user ID is aarav_ahmed_6699. Pay from acct_410."
     backend, proxy, _ = setup(tmp_path, always(True), intent=intent)

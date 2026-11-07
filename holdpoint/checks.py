@@ -3,7 +3,9 @@ import re
 
 _NAME = r"([a-z][a-z0-9]*(?:_[a-z0-9]+)+)"
 _REQUIRED = [
-    re.compile(rf"\b(?:call|use|run|invoke)\s+(?:the\s+)?[`'\"]?{_NAME}"),
+    re.compile(rf"\b(?i:call|invoke)\s+(?i:the\s+)?[`'\"]?{_NAME}"),
+    # "use store_credit" usually names a thing, not a tool, so "use" and "run" need quotes or the word "tool".
+    re.compile(rf"\b(?i:use|run)\s+(?i:the\s+)?[`'\"]{_NAME}"),
     re.compile(rf"[`'\"]?{_NAME}[`'\"]?\s+tool\b"),
 ]
 
