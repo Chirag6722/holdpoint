@@ -885,8 +885,9 @@ def test_negative_control_repeated_reads_still_run():
 
 def test_tool_failing_three_times_waits_for_a_person():
     gate = Gate(AUTO)
-    failed = [{"tool": "refund", "ok": False, "text": "504"}] * 3
-    assert gate.decide("refund", {"amount": 10}, {}, failed[:2]).allow is True
+    # Each failure was followed by a success, so only the count of failures can hold the next call.
+    failed = [{"tool": "refund", "ok": False, "text": "504"}, {"tool": "refund", "ok": True, "text": "done"}] * 3
+    assert gate.decide("refund", {"amount": 10}, {}, failed[:4]).allow is True
     decision = gate.decide("refund", {"amount": 11}, {}, failed)
     assert (decision.allow, decision.by) == (False, "gate") and "failed 3 times" in decision.reason
 
@@ -1217,7 +1218,7 @@ def test_cli_approve_refuses_an_edited_hold_with_a_clear_message(tmp_path, monke
     hold_id = approvals.record_hold("send_payment", PAY, "held")
     path = approvals.pending / f"{hold_id}.json"
     path.write_text(path.read_text(encoding="utf-8").replace("Ann", "Mallory"), encoding="utf-8")
-    assert "changed" in str(cli_run(tmp_path, "approve", hold_id))
+    assert "changed" in str(cli_run(tmp_path, "approve", hold_id, "--yes"))
     assert list(approvals.tokens.glob("*.json")) == []
 
 

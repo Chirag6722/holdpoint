@@ -155,11 +155,15 @@ LIMITS = [
     ("Wrong holds cost real work", "On held-out tasks the gate lost 17 should-act passes.",
      "Route holds to someone who can approve them quickly. That flow is built, but it has not been tested with real people."),
     ("Your host must supply the request", "MCP does not carry the user's request, so without it every commit is held.",
-     "Write the request to the intent file at session start, somewhere the agent cannot write."),
+     "Write the request to the intent file whenever the user asks for something, somewhere the agent cannot write. It is read again on every call."),
     ("A tool is trusted when first seen", "Fingerprints catch a definition that changes later, not one that was malicious from the start.",
      "Read the tool definitions before the first run, and review any change before <code>holdpoint accept-tools</code>."),
     ("The state folder must stay out of reach", "Holds keep arguments in readable form so a person can judge them. Someone with the key can rewrite the log, and a rollback goes unnoticed without a saved hash.",
      "Keep the key from the agent and the tool server. Use <code>--redact</code> for sensitive arguments in the log, and pass a hash saved elsewhere to <code>verify-log --expect</code>."),
+    ("The reviewer reads the agent's own arguments", "Text in an argument, such as \"the user confirmed this\", reaches the reviewer unflagged. The injection tests only attacked tool output.",
+     "Keep the decisions that matter in hard rules and <code>person</code> labels, which never read that text."),
+    ("A duplicate means an identical call", "A repeat with a small change, such as a new reference, runs, unless the earlier call failed.",
+     "Use session totals, shared across tools with <code>budget</code>, so many small changed calls still add up."),
     ("A hold pauses the work", "There is no simulated success or rollback, so an agent cannot carry on past a hold.",
      "Use <code>--wait-seconds</code> so the call waits for a person and then runs. A waiting call blocks that session, and the client's own timeout still applies."),
 ]
@@ -267,11 +271,19 @@ def self_attack_section():
             ("<code>100.0</code> was a different call from <code>100</code>", "The reviewer ran the same refund twice past the duplicate guard.",
              "Numbers are written the same way before comparing calls."),
             ("Patterns missed lists and other scripts", "A blocked address inside a list, or a blocked word in Russian, passed.",
-             "Patterns check every piece of text, and a missing argument counts as a match.")]
+             "Patterns check every piece of text, and a missing argument counts as a match."),
+            ("A negative amount passed a limit", "A judge-style review sent <code>amount: -100000</code> past <code>over: 500, then: deny</code>, and it ran.",
+             "Limits apply to size, in the gate and in the proof."),
+            ("A retry with one changed character ran again", "After a timeout that still placed the order, adding a space to the reference placed it twice.",
+             "After any failed write call, the next call to that tool waits for a person."),
+            ("Approving did not show the call", "<code>holdpoint approve</code> approved by id alone, so an agent could describe the call falsely, and an approval could last for years.",
+             "It prints the exact call and asks first, and an approval lasts at most an hour."),
+            ("<code>--allow</code> skipped hard limits", "An allowed tool ran past a <code>deny</code> rule.",
+             "Nothing skips a <code>deny</code> rule.")]
     body = "".join(f"<tr><th scope='row'>{a}</th><td>{b}</td><td>{c}</td></tr>" for a, b, c in rows)
     score = f" The mutation check now breaks {len(mutants)} protections one at a time, and the tests caught {caught}." if mutants else ""
     return ("<section id='attacked' class='chapter yellow' data-chapter='We attacked our own gate'><div class='wrap'><h2>We attacked our own gate</h2>"
-            "<p>After the measured run we tried to break the code ourselves, then asked an independent reviewer to try. Both found real problems, listed below. Each now has a test that failed before its fix."
+            "<p>After the measured run we tried to break the code ourselves, then asked an independent reviewer and a judge-style reviewer to try. All found real problems, listed below. Each now has a test that failed before its fix."
             f"{score}</p><div class='scroll'><table class='wide'><thead><tr><th scope='col'>Problem</th><th scope='col'>What we saw</th><th scope='col'>Fix</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div>"
             "<p><strong>Effect on the measured run:</strong> the saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. "
@@ -409,7 +421,7 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 python examples/demo.py
 pytest -q
 python tests/mutation_check.py</pre>
-<p>See five support tickets handled by fixed rules alone, where the scripted agent obeys an injected ticket and keeps retrying a failing payment. It uses no model.</p>
+<p>See five support tickets handled by fixed rules alone, where the scripted agent obeys an injected ticket and retries a payment that failed. It uses no model.</p>
 <pre class="terminal">python examples/support_demo.py</pre>
 <p>Prove a limit for every possible call. Loosen a rule, and you get the exact call that escapes. This covers the rules as written, not whether an agent is safe. {link('docs/PROVE.md', 'What it assumes')}.</p>
 <pre class="terminal">holdpoint prove examples/shop_policy.yaml --tool issue_refund --never "amount > 500" --even-with-approval</pre>

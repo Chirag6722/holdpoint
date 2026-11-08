@@ -49,6 +49,17 @@ python bench/analyse_dev.py evidence/heldout.csv
 
 `report.py` applies the benchmark's own pass rule: for operational tasks, the commit check and the judge must both pass.
 
+Columns in the CSV files, because two of them read backwards:
+
+| Column | Meaning |
+|---|---|
+| `commit` | The benchmark's commit check passed. On a should-stop task, `False` means an irreversible action ran. |
+| `judge` | The benchmark's judge passed the reply. |
+| `passed` | Both passed, so the task counts as correct. |
+| `side` | `act` for the should-act twin, `abstain` for the should-stop twin. |
+| `condition` | `baseline` with no gate, `gated` through Holdpoint. |
+| `held` | Calls the gate held, by tool. |
+
 ## Saved evidence
 
 | File | What it holds |

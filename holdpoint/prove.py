@@ -19,7 +19,7 @@ OTHER = "__any_other_value__"
 _NUMBER_CLAIM = re.compile(r"^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)\s*$")
 _LIST_CLAIM = re.compile(r"^\s*(\w+)\s+(not in|in)\s+\[(.*)\]\s*$")
 ASSUMPTIONS = ("pattern rules are assumed to pass anything", "the reviewer is assumed to say yes to anything",
-               "--allow flags are not considered, because they skip the rules on purpose")
+               "--allow flags are not considered: they skip every rule except deny rules")
 
 
 @dataclass
@@ -45,9 +45,6 @@ class _Encoder:
             self.value[arg] = z3.Real(f"{arg}_value")
             self.choice[arg] = z3.Int(f"{arg}_choice")
             self.base += [self.choice[arg] >= 0, self.choice[arg] < len(self.tokens[arg])]
-
-    def within(self, arg, limit):
-        return self.z3.And(self.number[arg], self.value[arg] <= limit)
 
     def size_within(self, arg, limit):
         value = self.value[arg]
@@ -103,7 +100,7 @@ def _can_run(enc: _Encoder, entry, even_with_approval: bool):
         if "pattern" in rule or (even_with_approval and rule["then"] != "deny"):
             continue
         arg = rule["arg"]
-        holds.append(enc.within(arg, z3.RealVal(str(rule["over"]))) if "over" in rule else enc.listed(arg, rule["not_in"]))
+        holds.append(enc.size_within(arg, z3.RealVal(str(rule["over"]))) if "over" in rule else enc.listed(arg, rule["not_in"]))
     total = entry.get("session_total")
     if total and (not even_with_approval or total["then"] == "deny"):
         # Any call that passes with something already spent also passes as the first call, so nothing spent is exact.

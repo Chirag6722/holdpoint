@@ -22,6 +22,7 @@ def session(tmp, env, name):
 
 async def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith("HOLDPOINT_")}
+    env["FASTMCP_LOG_LEVEL"] = "CRITICAL"  # the servers' own errors are part of the demo, not news
     env.update(HOLDPOINT_KEY=os.urandom(16).hex(), PYTHONPATH=str(ROOT), PYTHONUTF8="1")
     seen = {}
     with tempfile.TemporaryDirectory() as tmp:

@@ -17,6 +17,15 @@ from .audit import latest_hash, verify
 from .prove import prove
 from .proxy import downstream_env, hint
 
+MAX_TTL_SECONDS = 3600
+
+
+def ttl(text: str) -> float:
+    value = float(text)
+    if not 0 < value <= MAX_TTL_SECONDS:
+        raise argparse.ArgumentTypeError(f"must be more than 0 and at most {MAX_TTL_SECONDS} seconds")
+    return value
+
 
 def format_holds(holds: list[dict]) -> str:
     """What a person needs before approving: the exact call, why it was held, and how to approve it."""
@@ -29,6 +38,20 @@ def format_holds(holds: list[dict]) -> str:
         blocks.append(f"Held at {when}\n  Would run: {h['tool']}\n{args}\n  Why held: {h['reason']}\n"
                       f"  To allow this exact call once: holdpoint approve {h['hold_id']}")
     return "\n\n".join(blocks)
+
+
+def confirm_approval(holds: list[dict], hold_id: str, assume_yes: bool) -> None:
+    """Show the exact call before approving it, so an agent's description of it is never what gets approved."""
+    hold = next((h for h in holds if h["hold_id"] == hold_id), None)
+    if hold is None:
+        sys.exit(f"not approved: no hold {hold_id} is waiting")
+    print(format_holds([hold]).rsplit("\n", 1)[0])
+    if assume_yes:
+        return
+    if not sys.stdin.isatty():
+        sys.exit("not approved: read the call above, then run again with --yes")
+    if input("Approve this exact call once? Type yes: ").strip().lower() != "yes":
+        sys.exit("not approved")
 
 
 def draft_policy(tools) -> str:
@@ -81,21 +104,28 @@ def main(argv=None):
     if argv[:1] == ["prove"]:
         return prove_command(argv[1:])
     p = argparse.ArgumentParser(prog="holdpoint")
-    p.add_argument("--state-dir", required=True)
+    p.add_argument("--state-dir", help="the proxy's state directory; every command except prove and draft-policy needs it")
     sub = p.add_subparsers(dest="cmd", required=True)
-    hp = sub.add_parser("holds")
+    sub.add_parser("prove", help="prove a limit holds for every possible call, or print one that breaks it")
+    sub.add_parser("draft-policy", help="write a first policy from a server's tool list: draft-policy -- COMMAND")
+    hp = sub.add_parser("holds", help="list calls waiting for a person")
     hp.add_argument("--json", action="store_true")
-    ap = sub.add_parser("approve")
+    ap = sub.add_parser("approve", help="show one held call, then allow it once")
     ap.add_argument("hold_id")
-    ap.add_argument("--ttl", type=float, default=300.0)
-    vl = sub.add_parser("verify-log")
+    ap.add_argument("--ttl", type=ttl, default=300.0, help=f"seconds the approval stays valid, at most {MAX_TTL_SECONDS}")
+    ap.add_argument("--yes", action="store_true", help="skip the question; the call is still printed")
+    vl = sub.add_parser("verify-log", help="check the audit log has not been changed")
     vl.add_argument("--expect", help="a latest hash saved earlier, outside the state directory")
     sub.add_parser("accept-tools", help="trust the tool definitions as they are now")
-    rp = sub.add_parser("reject")
+    rp = sub.add_parser("reject", help="refuse a held call, and cancel any approval for it")
     rp.add_argument("hold_id")
     sv = sub.add_parser("serve", help="open a local approval screen")
     sv.add_argument("--port", type=int, default=0)
     a = p.parse_args(argv)
+    if a.cmd in ("prove", "draft-policy"):
+        p.error(f"put {a.cmd} first: holdpoint {a.cmd} ...")
+    if not a.state_dir:
+        p.error("--state-dir is required for this command")
     key = os.environ.get("HOLDPOINT_KEY")
     key = key.encode("utf-8") if key else None
     state = Path(a.state_dir)
@@ -129,6 +159,7 @@ def main(argv=None):
             sys.exit(f"not rejected: {exc}")
         print(f"rejected {a.hold_id}")
     else:
+        confirm_approval(approvals.list_holds(), a.hold_id, a.yes)
         try:
             approvals.approve(a.hold_id, a.ttl)
         except ValueError as exc:

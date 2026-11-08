@@ -34,8 +34,12 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 | Control the agent | Write the same number another way, such as `100.0` for `100` | Treated as the same call |
 | Control the agent | Hide a blocked value inside a list or object, or in another script | Patterns check every piece of text |
 | Control the agent | Get a call approved while it waits, to pass a session cap | The approval goes back through the gate, so caps and records still apply |
-| Control the agent | Repeat a call that already ran, such as a payment after a timeout | Needs a person |
-| Control the agent | Keep retrying a tool that keeps failing | Needs a person after 3 failures |
+| Control the agent | Repeat a call that already ran | Needs a person |
+| Control the agent | Retry a call that failed, possibly after it went through, with a small change such as a trailing space | Needs a person: after any failed write call, the next call to that tool waits |
+| Control the agent | Keep retrying a tool that keeps failing | Needs a person after 3 failures, even with successes between |
+| Control the agent | Send a negative amount, such as a refund of -100000, past an `over` limit | Limits apply to size, so it breaks the limit |
+| Control the agent | Split spending across two tools that move the same money | Tools that name the same `budget` share one total |
+| Fool the person | Describe a held call falsely, so a person approves it blind | `holdpoint approve` prints the exact call and asks first; approvals last at most an hour |
 | Reach the approval screen from another website | Post an approval to localhost, or use a rebinding DNS name | Refused without the secret link and a local host name |
 | Control the tool server | Label a dangerous tool safe, while the server admits it is dangerous | Held |
 | Control the tool server | Change a tool's definition after first use | Held until a person accepts it |

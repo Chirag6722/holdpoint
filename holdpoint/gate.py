@@ -63,16 +63,18 @@ class Gate:
             self.executed.add(call_hash(tool, args))
         amount = rules.amount_of(self.policy.get(tool), args)
         if amount:
-            self.totals[tool] += amount
+            self.totals[rules.budget_of(self.policy.get(tool), tool)] += amount
         self._save_review_state()
         return Decision(True, by, reason, usage)
 
     def decide(self, tool: str, args: dict, inventory: dict, trace: list[dict]) -> Decision:
-        if tool in self.allow:
-            return Decision(True, "allowlist")
-        ruling = rules.check(self.policy.get(tool), args, self.totals[tool])
+        entry = self.policy.get(tool)
+        ruling = rules.check(entry, args, self.totals[rules.budget_of(entry, tool)])
         if ruling and ruling[0] == "deny":
             return Decision(False, "floor", f"{ruling[1]}. No approval can clear this.")
+        if tool in self.allow:
+            # Skips everything but the floor, which nothing may skip.
+            return Decision(True, "allowlist")
         if not ruling and not self.is_commit(tool):
             return self._allowed(tool, args, "policy")
         if self.approvals is not None:
@@ -84,6 +86,12 @@ class Gate:
         digest = call_hash(tool, args)
         if digest in self.executed:
             return Decision(False, "gate", "this exact call already ran this session, so running it again needs human approval")
+        last = next((e for e in reversed(trace) if e["tool"] == tool), None)
+        if self.is_commit(tool) and last is not None and not last["ok"]:
+            # A server can fail after the change was made, for example a timeout after a payment went through.
+            # A retry with any small difference would pass the duplicate check, so every retry waits.
+            return Decision(False, "gate", "the last call to this tool failed, and it may still have gone through, "
+                                           "so the next one needs human approval")
         if sum(e["tool"] == tool and not e["ok"] for e in trace) >= MAX_TOOL_FAILURES:
             return Decision(False, "gate", f"this tool has failed {MAX_TOOL_FAILURES} times this session, so it needs human approval")
         if rules.label_of(self.policy.get(tool)) == rules.AUTO_LABEL:

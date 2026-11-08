@@ -11,4 +11,5 @@ send_email:
   label: auto
   rules:
     - {arg: to, not_in: [customer@shop.example], then: deny}
-    - {arg: "*", pattern: "\\b(?:\\d[ -]?){13,19}\\b", then: deny}
+    # A card number written with any separators. A demonstration filter, not a data-loss product.
+    - {arg: "*", pattern: "(?<!\\d)(?:\\d[\\W_]{0,3}){12,18}\\d(?!\\d)", then: deny}

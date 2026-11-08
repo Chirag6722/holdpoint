@@ -5,11 +5,11 @@ A policy entry is a label, or a mapping:
     send_payment:
       label: commit
       rules:
-        - {arg: amount, over: 500, then: deny}     # no approval can clear this
+        - {arg: amount, over: 500, then: deny}     # no approval can clear this; -600 breaks it too
         - {arg: amount, over: 50, then: person}    # waits for a human, skips the reviewer
         - {arg: to, not_in: [Ann, Bob], then: person}
         - {arg: "*", pattern: "sk-[A-Za-z0-9]{8}", then: deny}
-      session_total: {arg: amount, over: 200, then: person}
+      session_total: {arg: amount, over: 200, then: person, budget: money}   # tools naming one budget share it
 
 Anything a rule cannot read counts as a match, so a missing or malformed argument never slips past.
 """
@@ -21,6 +21,7 @@ AUTO_LABEL = "auto"  # Runs with no reviewer or person, but only while every har
 OUTCOMES = {"deny": 2, "person": 1}
 RULE_KEYS = {"arg", "over", "not_in", "pattern", "then"}
 ENTRY_KEYS = {"label", "rules", "session_total"}
+TOTAL_KEYS = {"arg", "over", "then"}
 
 
 def label_of(entry):
@@ -58,8 +59,9 @@ def validate(policy: dict) -> None:
             if "pattern" in rule:
                 re.compile(rule["pattern"])
         total = entry.get("session_total")
-        if total is not None and (set(total) != {"arg", "over", "then"} or total["then"] not in OUTCOMES
-                                  or not _is_finite(total["over"])):
+        if total is not None and (set(total) - {"budget"} != TOTAL_KEYS or total["then"] not in OUTCOMES
+                                  or not _is_finite(total["over"])
+                                  or not isinstance(total.get("budget", tool), str)):
             raise ValueError(f"{tool}: bad session_total {total}")
 
 
@@ -86,8 +88,15 @@ def _matches(rule: dict, args: dict) -> bool:
         return any(re.search(rule["pattern"], text) for text in _texts(args[rule["arg"]]))
     value = args.get(rule["arg"])
     if "over" in rule:
-        return not _within(value, rule["over"])
+        # Size, not sign: a refund of -100000 is as large as one of 100000.
+        return not (_is_number(value) and _within(abs(value), rule["over"]))
     return value not in rule["not_in"]
+
+
+def budget_of(entry, tool: str) -> str:
+    """The running total this tool adds to. Tools that name the same budget share one total."""
+    total = entry.get("session_total") if isinstance(entry, dict) else None
+    return total.get("budget", tool) if total else tool
 
 
 def amount_of(entry, args: dict) -> float:
@@ -113,7 +122,7 @@ def check(entry, args: dict, spent: float = 0) -> tuple[str, str] | None:
 
 def _describe(rule: dict) -> str:
     if "over" in rule:
-        return f"must be a number no more than {rule['over']}"
+        return f"must be a number between -{rule['over']} and {rule['over']}"
     if "not_in" in rule:
         return "must be on the allowed list"
     return "must not match the blocked pattern"

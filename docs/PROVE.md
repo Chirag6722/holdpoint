@@ -22,7 +22,7 @@ To keep a PROVED result from relying on anything uncertain:
 
 - `pattern` rules are assumed to pass anything.
 - The reviewer is assumed to say yes to anything.
-- `--allow` flags are not considered, because they skip the rules on purpose.
+- `--allow` flags are not considered: they skip every rule except `deny` rules.
 - It looks at one call on a fresh session. The duplicate guard, circuit breaker and retry limits only stop more calls, so leaving them out cannot make a proof wrong.
 
 A session total is modelled as a limit on one call, which is exact for that call. Proving a limit across a whole session's total is not covered.

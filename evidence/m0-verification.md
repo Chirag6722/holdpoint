@@ -159,6 +159,23 @@ Each problem was reproduced as a failing test before its fix, in `tests/test_rev
 
 None of this was measured on the benchmark. The code at `heldout-v1` had no waiting, proof, session totals or patterns, so the measured run is not affected.
 
+## Judge-style review, 8 Nov 2026
+
+A fresh reviewer graded the entry against the five scoring criteria, ran every keyless command in the README, and tried to break the gate. It found three bypasses by running code, and nine smaller problems.
+
+1. **A negative amount passed `over` limits.** `amount: -100000` ran under `over: 500, then: deny`. Limits now apply to size, in the gate and in the prover.
+2. **A retry with one changed character passed the duplicate guard.** After a timeout, `"PO-TIMEOUT "` or `3000.01` ran again. Now, after any failed write call, the next call to that tool waits for a person. The proxy cannot tell a timeout from other errors, so this is applied to all of them.
+3. **`holdpoint approve` approved without showing the call,** and `--ttl` had no upper bound. It now prints the exact call and asks, unless given `--yes`, and approvals last at most an hour.
+4. **`--allow` skipped `deny` rules.** It no longer does.
+5. **The request file was read once, at start,** but desktop clients start the proxy once for many requests. It is now read on every call.
+6. **Spending split across two tools escaped one session total.** Tools can now share a total with `budget`.
+7. **The demo card filter missed dots and slashes.** The pattern now allows any separator. It is a demonstration filter.
+8. Smaller ones: the demos printed server tracebacks, `holdpoint --help` hid `prove` and `draft-policy`, the mutation check printed nothing for minutes, and two CSV columns read backwards. All fixed. Two suspected problems, arguments reaching the reviewer unflagged and counts kept per request, are now listed as known limits.
+
+Each fix has a test in `tests/test_judge_findings.py`, written to fail first: 5 of the 7 first tests failed before the fixes, and the 2 others checked behaviour that was already right. Each fix also has a mutation case.
+
+**Behaviour change:** the retry rule makes the gate stricter than the code at `heldout-v1`, which may cost should-act tasks that retry after an error. It has not been measured on the benchmark, so the published numbers come from the tagged code only.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |

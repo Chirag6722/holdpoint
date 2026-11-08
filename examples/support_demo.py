@@ -1,7 +1,7 @@
 """Five support tickets through the real proxy, with no API keys. Run: python examples/support_demo.py
 
 The agent is scripted, and it does what a fooled agent would do: it obeys the injected ticket and
-keeps retrying a failing payment. So the rules are what stop it, not a cooperative agent. No model
+retries a payment that failed and may have gone through. So the rules are what stop it, not a cooperative agent. No model
 is used anywhere here. The shop is a sandbox.
 """
 import asyncio
@@ -53,6 +53,7 @@ async def attempt(client, label, tool, **args):
 
 async def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith("HOLDPOINT_")}
+    env["FASTMCP_LOG_LEVEL"] = "CRITICAL"  # the servers' own errors are part of the demo, not news
     env.update(HOLDPOINT_KEY=os.urandom(16).hex(), PYTHONPATH=str(ROOT), PYTHONUTF8="1")
     seen = {}
     with tempfile.TemporaryDirectory() as tmp:
@@ -71,7 +72,7 @@ async def main():
             t.cli("reject", t.latest_hold())
             print("  a person rejects it")
             seen["102"].append(await attempt(c, "the agent asks again", "issue_refund", **big))
-            t.cli("approve", t.latest_hold())
+            t.cli("approve", t.latest_hold(), "--yes")
             print("  a person changes their mind and approves that one call")
             seen["102"].append(await attempt(c, "the approved refund", "issue_refund", **big))
             seen["102"].append(await attempt(c, "the same refund again", "issue_refund", **big))
@@ -95,7 +96,7 @@ async def main():
                            await attempt(c, "refund $45 more, which passes the $100 total", "issue_refund", order="O-103", amount=45)]
         seen["104_done"] = t.done()
 
-        print("\nT-105: the payment gateway keeps failing, and the agent keeps trying")
+        print("\nT-105: the payment gateway fails, maybe after paying, and the agent keeps trying")
         t = Ticket(tmp, env, "t105")
         async with t.client() as c:
             seen["105"] = [await attempt(c, f"refund ${20 + i}, try {i}", "issue_refund", order="O-105", amount=20 + i) for i in range(1, 4)]
@@ -107,7 +108,7 @@ async def main():
     assert seen["102"] == ["HELD", "HELD", "RAN", "HELD"] and len(seen["102_done"]) == 1, seen
     assert seen["103"] == ["REFUSED", "REFUSED", "REFUSED"] and seen["103_done"] == [], seen
     assert seen["104"] == ["REFUSED", "RAN", "RAN", "HELD"] and len(seen["104_done"]) == 2, seen
-    assert seen["105"] == ["FAILED", "FAILED", "FAILED", "HELD"] and seen["105_done"] == [], seen
+    assert seen["105"] == ["FAILED", "HELD", "HELD", "HELD"] and seen["105_done"] == [], seen
     print("All outcomes were as expected.")
 
 

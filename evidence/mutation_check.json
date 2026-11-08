@@ -36,6 +36,14 @@
   "status": "caught"
  },
  {
+  "mutant": "limits ignore negative amounts",
+  "status": "caught"
+ },
+ {
+  "mutant": "tools do not share a budget",
+  "status": "caught"
+ },
+ {
   "mutant": "true counts as a number",
   "status": "caught"
  },
@@ -61,6 +69,30 @@
  },
  {
   "mutant": "session total not counted",
+  "status": "caught"
+ },
+ {
+  "mutant": "allowlist skips the floor",
+  "status": "caught"
+ },
+ {
+  "mutant": "retry after a failed call runs",
+  "status": "caught"
+ },
+ {
+  "mutant": "request read only at start",
+  "status": "caught"
+ },
+ {
+  "mutant": "approve without showing the call",
+  "status": "caught"
+ },
+ {
+  "mutant": "approval with no time limit",
+  "status": "caught"
+ },
+ {
+  "mutant": "approve without asking",
   "status": "caught"
  },
  {

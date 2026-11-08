@@ -23,14 +23,23 @@ MUTANTS = [
     ("rules skipped on safe labels", "gate.py", "if not ruling and not self.is_commit(tool):", "if not self.is_commit(tool):"),
     ("mapping without label is safe", "rules.py", 'entry.get("label", "commit")', 'entry.get("label", "lookup")'),
     ("bad rules start anyway", "proxy.py", "    validate_rules(policy)\n", ""),
-    ("missing amount counts as small", "rules.py", 'return not _within(value, rule["over"])', 'return _is_number(value) and value > rule["over"]'),
+    ("missing amount counts as small", "rules.py", 'return not (_is_number(value) and _within(abs(value), rule["over"]))',
+     'return _is_number(value) and abs(value) > rule["over"]'),
+    ("limits ignore negative amounts", "rules.py", '_within(abs(value), rule["over"])', '_within(value, rule["over"])'),
+    ("tools do not share a budget", "rules.py", 'return total.get("budget", tool) if total else tool', "return tool"),
     ("true counts as a number", "rules.py", "and not isinstance(value, bool)", ""),
     ("list check off", "rules.py", 'return value not in rule["not_in"]', "return False"),
     ("star pattern checks only one argument", "rules.py", '        if rule["arg"] == "*":\n', "        if False:\n"),
     ("session total off", "rules.py", 'if not _is_number(value) or not _within(spent + abs(value), total["over"]):', "if False:"),
     ("large negative passes the total", "rules.py", "_within(spent + abs(value), total", "_within(spent + value, total"),
     ("negative amount lowers the total", "rules.py", 'return abs(value) if _within(value, float("inf")) else 0', 'return value if _within(value, float("inf")) else 0'),
-    ("session total not counted", "gate.py", "self.totals[tool] += amount", "pass"),
+    ("session total not counted", "gate.py", "self.totals[rules.budget_of(self.policy.get(tool), tool)] += amount", "pass"),
+    ("allowlist skips the floor", "gate.py", 'if ruling and ruling[0] == "deny":', 'if ruling and ruling[0] == "deny" and tool not in self.allow:'),
+    ("retry after a failed call runs", "gate.py", 'if self.is_commit(tool) and last is not None and not last["ok"]:', "if False:"),
+    ("request read only at start", "proxy.py", "self.gate.intent = read_request(self.intent_file)", "pass"),
+    ("approve without showing the call", "cli.py", "confirm_approval(approvals.list_holds(), a.hold_id, a.yes)", "pass"),
+    ("approval with no time limit", "cli.py", "if not 0 < value <= MAX_TTL_SECONDS:", "if False:"),
+    ("approve without asking", "cli.py", "if not sys.stdin.isatty():", "if False:"),
     ("session total lost on restart", "gate.py", 'self.totals = Counter(saved["totals"])', "pass"),
     ("milder rule wins", "rules.py", "return max(hits,", "return min(hits,"),
     ("floor refusal waits for a person", "approval.py", 'UNAPPROVABLE = frozenset({"floor", "pins", "labels"})',
@@ -97,7 +106,7 @@ MUTANTS = [
     ("escape leaves out pattern text", "prove.py", "    call = _with_pattern_args(policy, tool, call, even_with_approval)\n", ""),
     ("proof proves everything", "prove.py", "if answer == z3.unsat:", "if True:"),
     ("model ignores its limits", "prove.py",
-     'holds.append(enc.within(arg, z3.RealVal(str(rule["over"]))) if "over" in rule else enc.listed(arg, rule["not_in"]))', "pass"),
+     'holds.append(enc.size_within(arg, z3.RealVal(str(rule["over"]))) if "over" in rule else enc.listed(arg, rule["not_in"]))', "pass"),
     ("model lists no allowed values", "prove.py", 'else enc.listed(arg, rule["not_in"]))', "else z3.BoolVal(True))"),
     ("model ignores large negatives", "prove.py", "value <= limit, -value <= limit)", "value <= limit)"),
     ("model ignores the session total", "prove.py", 'holds.append(enc.size_within(total["arg"], z3.RealVal(str(total["over"]))))', "pass"),
@@ -162,6 +171,7 @@ def copy_project(work):
 
 def main():
     # A failing suite would make every mutant look caught, so the clean code must pass first.
+    print(f"Running the full suite twice on unbroken code, then once for each of {len(MUTANTS)} broken copies.", flush=True)
     clean = run_tests(ROOT)
     if clean.returncode:
         print(clean.stdout[-1500:])

@@ -65,7 +65,7 @@
           "order": "O-102",
           "amount": -1000
         },
-        "expected": "HELD"
+        "expected": "REFUSED"
       },
       {
         "label": "Email an outside address",

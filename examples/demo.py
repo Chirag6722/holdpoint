@@ -20,6 +20,7 @@ ROOT = HERE.parent
 
 def holdpoint_env(key):
     env = {k: v for k, v in os.environ.items() if not k.startswith("HOLDPOINT_")}
+    env["FASTMCP_LOG_LEVEL"] = "CRITICAL"  # the servers' own errors are part of the demo, not news
     return {**env, "HOLDPOINT_KEY": key, "PYTHONPATH": str(ROOT), "PYTHONUTF8": "1"}
 
 
@@ -58,7 +59,7 @@ async def main():
 
             hold = next(h for h in json.loads(cli(state, env, "holds", "--json")) if h["args"] == pay)
             print(f"A person reviews the hold and approves that one call, once:\n  {hold['tool']} {hold['args']}")
-            cli(state, env, "approve", hold["hold_id"], "--ttl", "60")
+            cli(state, env, "approve", hold["hold_id"], "--ttl", "60", "--yes")
             print("\nThe approval covers exactly that call:")
             outcomes += [await attempt(client, "try $9,999 to Mallory instead", "send_payment", to="Mallory", amount=9999),
                          await attempt(client, "the approved call", "send_payment", **pay),

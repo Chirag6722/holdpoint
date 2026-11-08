@@ -72,6 +72,14 @@ def admits_it_changes_things(tool) -> bool:
             or hint(annotations, "read_only_hint", "readOnlyHint") is False)
 
 
+def read_request(path) -> str | None:
+    """The user's current request. Missing or unreadable means none, and with no request every commit waits."""
+    try:
+        return Path(path).read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
 def redact(value, names: frozenset):
     if isinstance(value, dict):
         return {k: "[redacted]" if k in names else redact(v, names) for k, v in value.items()}
@@ -82,8 +90,9 @@ def redact(value, names: frozenset):
 
 class GateMiddleware(Middleware):
     def __init__(self, gate: Gate, approvals: Approvals, audit: AuditLog, pins: ToolPins | None = None,
-                 redact_args: frozenset = frozenset(), wait_seconds: float = 0):
+                 redact_args: frozenset = frozenset(), wait_seconds: float = 0, intent_file=None):
         self.gate, self.approvals, self.audit, self.pins = gate, approvals, audit, pins
+        self.intent_file = intent_file
         self.redact_args, self.wait_seconds = redact_args, wait_seconds
         self.trace: list[dict] = []
         # One call at a time, so a verdict always sees the full history.
@@ -105,6 +114,9 @@ class GateMiddleware(Middleware):
         tool = context.message.name
         args = dict(context.message.arguments or {})
         async with self.lock:
+            if self.intent_file is not None:
+                # Read on every call: desktop clients start the proxy once, then the user asks for many things.
+                self.gate.intent = read_request(self.intent_file)
             tools = await context.fastmcp_context.fastmcp.list_tools()
             inventory = {t.name: {"description": t.description, "parameters": getattr(t, "parameters", None)}
                          for t in tools}
@@ -149,15 +161,17 @@ class GateMiddleware(Middleware):
 
 def build(target, policy: dict, state_dir, intent: str | None = None, reviewer=None,
           allow: frozenset = frozenset(), key: bytes | None = None, redact_args: frozenset = frozenset(),
-          wait_seconds: float = 0):
+          wait_seconds: float = 0, intent_file=None):
     validate_rules(policy)
+    if intent_file is not None:
+        intent = read_request(intent_file)
     state = Path(state_dir)
     state.mkdir(parents=True, exist_ok=True)
     approvals = Approvals(state, key)
     gate = Gate(policy, approvals, reviewer, intent, allow, state / "review_holds.json")
     proxy = create_proxy(target, name="holdpoint")
     proxy.add_middleware(GateMiddleware(gate, approvals, AuditLog(state / "audit.jsonl", key),
-                                        ToolPins(state / "tool_pins.json"), redact_args, wait_seconds))
+                                        ToolPins(state / "tool_pins.json"), redact_args, wait_seconds, intent_file))
     return proxy
 
 
@@ -175,18 +189,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", required=True)
     parser.add_argument("--state-dir", required=True)
-    parser.add_argument("--intent-file")
+    parser.add_argument("--intent-file", help="a file holding the user's current request, read again on every call")
     parser.add_argument("--allow", action="append", default=[])
     parser.add_argument("--redact", action="append", default=[], help="an argument name to leave out of the audit log")
     parser.add_argument("--wait-seconds", type=float, default=0, help="how long a held call waits for a person before failing")
     a = parser.parse_args(argv[:split])
     with open(a.policy, encoding="utf-8") as f:
         policy = yaml.safe_load(f) or {}
-    intent = Path(a.intent_file).read_text(encoding="utf-8") if a.intent_file else None
     key = os.environ.get("HOLDPOINT_KEY")
     transport = StdioTransport(downstream[0], downstream[1:], env=downstream_env(os.environ), keep_alive=True)
-    proxy = build(Client(transport), policy, a.state_dir, intent, reviewer_from_env(),
-                  frozenset(a.allow), key.encode("utf-8") if key else None, frozenset(a.redact), a.wait_seconds)
+    proxy = build(Client(transport), policy, a.state_dir, None, reviewer_from_env(),
+                  frozenset(a.allow), key.encode("utf-8") if key else None, frozenset(a.redact), a.wait_seconds,
+                  a.intent_file)
     proxy.run(transport="stdio", show_banner=False)
 
 
