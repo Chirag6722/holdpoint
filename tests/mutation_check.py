@@ -26,7 +26,7 @@ MUTANTS = [
     ("missing amount counts as small", "rules.py", 'return not _within(value, rule["over"])', 'return _is_number(value) and value > rule["over"]'),
     ("true counts as a number", "rules.py", "and not isinstance(value, bool)", ""),
     ("list check off", "rules.py", 'return value not in rule["not_in"]', "return False"),
-    ("pattern ignores other arguments", "rules.py", 'json.dumps(args, default=str) if rule["arg"] == "*" else ', ""),
+    ("star pattern checks only one argument", "rules.py", '        if rule["arg"] == "*":\n', "        if False:\n"),
     ("session total off", "rules.py", 'if not _is_number(value) or not _within(spent + abs(value), total["over"]):', "if False:"),
     ("large negative passes the total", "rules.py", "_within(spent + abs(value), total", "_within(spent + value, total"),
     ("negative amount lowers the total", "rules.py", 'return abs(value) if _within(value, float("inf")) else 0', 'return value if _within(value, float("inf")) else 0'),

@@ -44,7 +44,7 @@
   "status": "caught"
  },
  {
-  "mutant": "pattern ignores other arguments",
+  "mutant": "star pattern checks only one argument",
   "status": "caught"
  },
  {
@@ -209,6 +209,58 @@
  },
  {
   "mutant": "screen answers any host",
+  "status": "caught"
+ },
+ {
+  "mutant": "waiting skips the gate's limits",
+  "status": "caught"
+ },
+ {
+  "mutant": "unapprovable hold can be approved",
+  "status": "caught"
+ },
+ {
+  "mutant": "screen offers approve on a refused call",
+  "status": "caught"
+ },
+ {
+  "mutant": "100.0 hashes apart from 100",
+  "status": "caught"
+ },
+ {
+  "mutant": "numbers inside lists not folded",
+  "status": "caught"
+ },
+ {
+  "mutant": "pattern skips lists",
+  "status": "caught"
+ },
+ {
+  "mutant": "pattern skips a missing argument",
+  "status": "caught"
+ },
+ {
+  "mutant": "star pattern escapes other scripts",
+  "status": "caught"
+ },
+ {
+  "mutant": "infinite limit accepted",
+  "status": "caught"
+ },
+ {
+  "mutant": "claim number rounded",
+  "status": "caught"
+ },
+ {
+  "mutant": "prover pretends to model lists",
+  "status": "caught"
+ },
+ {
+  "mutant": "bad request length accepted",
+  "status": "caught"
+ },
+ {
+  "mutant": "escape leaves out pattern text",
   "status": "caught"
  },
  {

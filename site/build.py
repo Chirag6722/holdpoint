@@ -184,25 +184,40 @@ def playground_data():
 
 
 def playground_section(pg):
-    options = "".join(f"<option value='{e(p['id'])}'>{e(p['name'])}</option>" for p in pg["presets"])
     return f"""<section id="try" class="chapter tryit" data-chapter="Break it yourself"><div class="wrap">
 <h2>Break it yourself</h2>
-<p>This runs the real gate code in your browser. Change the rules, send any call, and try to get something past it. Nothing is sent anywhere, and no key is needed.</p>
+<p class="pg-lede">Pretend you are an AI agent that has been tricked. Try to make the shop send money it should not. The real Holdpoint code decides, right here in your browser. Nothing is sent anywhere.</p>
+<ol class="pg-steps">
+<li><strong>Press Start.</strong> It loads Python, about 15 MB, the first time.</li>
+<li><strong>Pick a scenario, then press Try it</strong> on any line.</li>
+<li><strong>See what happened, and why.</strong> Where a person could approve, you can play the person.</li>
+</ol>
+<ul class="pg-legend" aria-label="What the results mean">
+<li><span class="mark ran">RAN</span> It happened.</li>
+<li><span class="mark held">HELD</span> It waits for a person.</li>
+<li><span class="mark refused">REFUSED</span> It can never happen, even with approval.</li>
+</ul>
 <noscript><p><strong>This part needs JavaScript.</strong> You can run the same code with the commands further down.</p></noscript>
-<button class="btn pg-start" id="pg-start" type="button" hidden>Start the gate</button>
+<button class="btn pg-start" id="pg-start" type="button" hidden>Start</button>
 <p class="pg-status" id="pg-status" role="status"></p>
-<div id="pg-work" hidden><div class="pg-grid"><div>
-<label for="pg-preset">Scenario</label><select id="pg-preset">{options}</select>
-<label for="pg-policy">Policy (edit it)</label><textarea id="pg-policy" spellcheck="false"></textarea>
-<div class="pg-actions"><button class="btn" id="pg-reset" type="button">Reset the session</button></div>
+<div id="pg-work" hidden>
+<div class="pg-tabs" id="pg-tabs" role="group" aria-label="Scenario"></div>
+<p class="pg-story" id="pg-story"></p>
+<p class="pg-score" id="pg-score" aria-live="polite"></p>
+<ol class="pg-attacks" id="pg-moves"></ol>
+<details class="pg-dev"><summary>For developers: write your own call, or change the rules</summary>
+<div class="pg-grid"><div>
 <label for="pg-tool">Tool</label><input id="pg-tool" spellcheck="false" autocomplete="off">
 <label for="pg-args">Arguments (JSON)</label><textarea id="pg-args" rows="2" spellcheck="false"></textarea>
 <div class="pg-actions"><button class="btn pg-send" id="pg-send" type="button">Send this call</button></div>
+<ol class="pg-attacks" id="pg-log" aria-live="polite"></ol>
 </div><div>
-<p class="pg-grid-title"><strong>Or try one of these moves</strong></p><div id="pg-moves"></div>
-<p style="margin-top:1.25rem"><strong>What the gate did, newest first</strong></p><ol id="pg-log" aria-live="polite"></ol>
-</div></div></div>
-<p class="pg-note">The page loads Python from jsDelivr when you press Start, and it runs {link('holdpoint/gate.py', 'gate.py')} and the files it needs, embedded unchanged. Code fingerprint: <code>{pg['digest'][:16]}</code>. No reviewer model runs here, so a plain <code>commit</code> always waits for a person, and the proxy's tool fingerprints are not part of this page. You are testing the fixed rules, not the benchmark result.</p>
+<label for="pg-policy">Rules for this scenario (YAML). Changing them starts a fresh session.</label>
+<textarea id="pg-policy" spellcheck="false"></textarea>
+<div class="pg-actions"><button class="btn" id="pg-reset" type="button">Start a fresh session</button></div>
+</div></div></details>
+</div>
+<p class="pg-note">This runs {link('holdpoint/gate.py', 'gate.py')} and the files it needs, embedded unchanged, fingerprint <code>{pg['digest'][:16]}</code>. Python loads from jsDelivr when you press Start. No reviewer model runs here, so a plain <code>commit</code> always waits for a person, and the proxy's tool fingerprints are not part of this page. You are testing the fixed rules, not the benchmark result.</p>
 </div></section>"""
 
 
