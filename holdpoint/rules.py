@@ -14,6 +14,7 @@ A policy entry is a label, or a mapping:
 Anything a rule cannot read counts as a match, so a missing or malformed argument never slips past.
 """
 import json
+import math
 import re
 
 AUTO_LABEL = "auto"  # Runs with no reviewer or person, but only while every hard rule is satisfied.
@@ -28,6 +29,10 @@ def label_of(entry):
 
 def _is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_finite(value) -> bool:
+    return _is_number(value) and math.isfinite(value)
 
 
 def _within(value, limit) -> bool:
@@ -48,20 +53,37 @@ def validate(policy: dict) -> None:
             tests = {"over", "not_in", "pattern"} & set(rule)
             if set(rule) - RULE_KEYS or "arg" not in rule or len(tests) != 1 or rule.get("then") not in OUTCOMES:
                 raise ValueError(f"{tool}: bad rule {rule}")
-            if "over" in rule and not _is_number(rule["over"]):
-                raise ValueError(f"{tool}: 'over' must be a number in {rule}")
+            if "over" in rule and not _is_finite(rule["over"]):
+                raise ValueError(f"{tool}: 'over' must be a finite number in {rule}")
             if "pattern" in rule:
                 re.compile(rule["pattern"])
         total = entry.get("session_total")
         if total is not None and (set(total) != {"arg", "over", "then"} or total["then"] not in OUTCOMES
-                                  or not _is_number(total["over"])):
+                                  or not _is_finite(total["over"])):
             raise ValueError(f"{tool}: bad session_total {total}")
+
+
+def _texts(value):
+    """Every piece of text inside a value, so a list or an object cannot hide one from a pattern."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key)
+            yield from _texts(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _texts(item)
+    else:
+        yield str(value)
 
 
 def _matches(rule: dict, args: dict) -> bool:
     if "pattern" in rule:
-        text = json.dumps(args, default=str) if rule["arg"] == "*" else str(args.get(rule["arg"], ""))
-        return re.search(rule["pattern"], text) is not None
+        if rule["arg"] == "*":
+            # ensure_ascii=False, or text that is not English is escaped and a pattern for it never matches.
+            return re.search(rule["pattern"], json.dumps(args, default=str, ensure_ascii=False)) is not None
+        if rule["arg"] not in args:
+            return True
+        return any(re.search(rule["pattern"], text) for text in _texts(args[rule["arg"]]))
     value = args.get(rule["arg"])
     if "over" in rule:
         return not _within(value, rule["over"])

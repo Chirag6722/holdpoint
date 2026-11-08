@@ -18,7 +18,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware
 from fastmcp.server.server import create_proxy
 
-from .approval import Approvals
+from .approval import UNAPPROVABLE, Approvals
 from .audit import AuditLog
 from .gate import Decision, Gate
 from .reviewer import reviewer_from_env
@@ -89,16 +89,17 @@ class GateMiddleware(Middleware):
         # One call at a time, so a verdict always sees the full history.
         self.lock = asyncio.Lock()
 
-    async def _approved_while_waiting(self, tool: str, args: dict, hold_id: str) -> bool:
+    async def _decided_while_waiting(self, tool: str, args: dict, hold_id: str, inventory: dict):
+        """Wait for a person. Once they approve, the gate decides again, so its limits and records still apply."""
         # ponytail: holds the session's lock, so one waiting call blocks the rest of this session. Clients have their own timeouts.
         deadline = time.monotonic() + self.wait_seconds
         while time.monotonic() < deadline:
             if self.approvals.was_denied(hold_id):
-                return False
-            if self.approvals.consume(tool, args):
-                return True
+                return None
+            if self.approvals.has_valid(tool, args):
+                return await asyncio.to_thread(self.gate.decide, tool, args, inventory, list(self.trace))
             await asyncio.sleep(min(WAIT_POLL_SECONDS, self.wait_seconds))
-        return False
+        return None
 
     async def on_call_tool(self, context, call_next):
         tool = context.message.name
@@ -121,15 +122,18 @@ class GateMiddleware(Middleware):
             self.audit.append(tool=tool, args=logged_args, allow=decision.allow, by=decision.by, reason=decision.reason,
                               usage=decision.usage)
             if not decision.allow:
-                hold_id = self.approvals.record_hold(tool, args, decision.reason)
+                hold_id = self.approvals.record_hold(tool, args, decision.reason, decision.by)
                 # Changed or mislabelled tools need a change to the setup, so a one-call approval cannot clear them.
-                if decision.by in ("pins", "labels", "floor") or not await self._approved_while_waiting(tool, args, hold_id):
-                    reason = decision.reason
+                answer = None if decision.by in UNAPPROVABLE else await self._decided_while_waiting(tool, args, hold_id, inventory)
+                if answer is None or not answer.allow:
+                    reason = answer.reason if answer else decision.reason
                     if self.approvals.was_denied(hold_id):
                         reason = "a person rejected this call. Do not retry it."
                         self.audit.append(tool=tool, args=logged_args, allow=False, by="human", reason=f"rejected {hold_id}", usage=None)
+                    elif answer is not None:
+                        self.audit.append(tool=tool, args=logged_args, allow=False, by=answer.by, reason=answer.reason, usage=None)
                     raise ToolError(HOLD_TEXT.format(tool=tool, reason=reason, hold_id=hold_id))
-                self.audit.append(tool=tool, args=logged_args, allow=True, by="human", reason=f"approval {hold_id}", usage=None)
+                self.audit.append(tool=tool, args=logged_args, allow=True, by=answer.by, reason=answer.reason, usage=answer.usage)
             try:
                 result = await call_next(context)
             except Exception as exc:

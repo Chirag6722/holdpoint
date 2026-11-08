@@ -38,6 +38,8 @@ class _Encoder:
         for arg, items in names.items():
             # True equals 1 in Python, so booleans are their own values and are looked up as Python does.
             words = [i for i in items if not isinstance(i, (int, float)) or isinstance(i, bool)]
+            if any(not isinstance(w, (str, bool)) and w is not None for w in words):
+                raise ValueError(f"cannot model the allowed values of {arg}: only text, numbers and booleans are covered")
             self.tokens[arg] = [*dict.fromkeys(words + [True, False]), OTHER]
             self.number[arg] = z3.Bool(f"{arg}_is_number")
             self.value[arg] = z3.Real(f"{arg}_value")
@@ -114,7 +116,8 @@ def _can_run(enc: _Encoder, entry, even_with_approval: bool):
 def parse_claim(claim: str):
     match = _NUMBER_CLAIM.match(claim)
     if match:
-        return match.group(1), match.group(2), float(match.group(3))
+        # Kept as written: reading it as a float would round it, and could prove a claim that is false.
+        return match.group(1), match.group(2), match.group(3)
     match = _LIST_CLAIM.match(claim)
     if match:
         items = [part.strip().strip("'\"") for part in match.group(3).split(",") if part.strip()]
@@ -145,6 +148,26 @@ def real_gate_runs(policy: dict, tool: str, args: dict, even_with_approval: bool
     return Gate(policy, approvals, reviewer, "any request").decide(tool, args, {}, []).allow
 
 
+PLAIN_TEXT = ("", "ok", "x", "0", "plain text")
+
+
+def _with_pattern_args(policy: dict, tool: str, call: dict, even_with_approval: bool) -> dict:
+    """The model lets pattern rules pass anything, so a counterexample needs real text that passes them.
+
+    A missing argument matches a pattern rule, so leaving it out would make the call fail on the real gate.
+    """
+    entry = policy.get(tool)
+    names = [r["arg"] for r in entry.get("rules", []) if "pattern" in r and r["arg"] != "*"] if isinstance(entry, dict) else []
+    for name in dict.fromkeys(names):
+        if name in call:
+            continue
+        for text in PLAIN_TEXT:
+            if real_gate_runs(policy, tool, {**call, name: text}, even_with_approval):
+                call = {**call, name: text}
+                break
+    return call
+
+
 def prove(policy: dict, tool: str, claim: str, even_with_approval: bool = False) -> Result:
     """PROVED means no call can run while the claim is true. Otherwise returns one that does, checked on the real gate."""
     z3 = _import_z3()
@@ -162,6 +185,7 @@ def prove(policy: dict, tool: str, claim: str, even_with_approval: bool = False)
         raise RuntimeError(f"the solver could not decide: {answer}")
     enc.model = solver.model()
     call = {arg: enc.concrete(arg) for arg in enc.tokens}
+    call = _with_pattern_args(policy, tool, call, even_with_approval)
     if not real_gate_runs(policy, tool, call, even_with_approval):
         raise RuntimeError(f"the solver's counterexample {call} does not run on the real gate, so the model is wrong")
     return Result(False, call)

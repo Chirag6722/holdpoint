@@ -11,6 +11,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
+from .approval import UNAPPROVABLE
+
 STYLE = """
 :root{--paper:#dfe9e4;--sheet:#eef4f0;--ink:#12332d;--tag:#f4c20d;--line:#7b968d;--fail:#a4262c}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 1.05rem/1.5 system-ui,sans-serif}
@@ -36,7 +38,9 @@ def render(holds: list[dict], token: str, message: str = "", approved: frozenset
         when = time.strftime("%H:%M:%S", time.localtime(hold["at"]))
         fields = "".join(f"<input type='hidden' name='{k}' value='{e(v)}'>"
                          for k, v in (("token", token), ("hold", hold["hold_id"])))
-        approve = ("<p class='done'>Approved. It runs once if the agent asks again. Reject cancels this.</p>"
+        approve = ("<p class='done'>This call cannot be approved. It needs a change to the policy or the tools.</p>"
+                   if hold.get("by") in UNAPPROVABLE else
+                   "<p class='done'>Approved. It runs once if the agent asks again. Reject cancels this.</p>"
                    if hold["hold_id"] in approved else
                    f"<form method='post' action='/approve'>{fields}<button class='approve'>Approve this exact call once</button></form>")
         cards += (f"<section class='hold'><div class='tool'>{e(hold['tool'])}</div>"
@@ -79,7 +83,12 @@ def make_server(approvals, port: int = 0):
             return self._send(200, render(approvals.list_holds(), token, query.get("msg", [""])[0], approvals.approved_ids()))
 
         def do_POST(self):
-            length = min(int(self.headers.get("Content-Length") or 0), 4096)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._send(400, "Bad request.")
+            if not 0 <= length <= 4096:
+                return self._send(400, "Bad request.")
             form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
             if not self._trusted(form.get("token", [""])[0]):
                 return self._send(403, "Forbidden.")

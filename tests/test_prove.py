@@ -55,6 +55,13 @@ def test_no_rules_means_no_proof(policy):
     assert prove(policy, "pay", "amount > 0").proved is False
 
 
+def test_escape_through_a_pattern_rule_supplies_text_that_really_passes():
+    policy = {"send_email": {"label": "auto", "rules": [{"arg": "body", "pattern": "secret", "then": "deny"}]}}
+    result = prove(policy, "send_email", "to not in [customer@shop.example]")
+    assert result.proved is False and "body" in result.call
+    assert real_gate_runs(policy, "send_email", result.call)
+
+
 def test_a_rule_that_is_only_a_pattern_is_not_relied_on():
     policy = {"pay": {"rules": [{"arg": "amount", "pattern": "^9", "then": "deny"}]}}
     assert prove(policy, "pay", "amount > 0").proved is False
