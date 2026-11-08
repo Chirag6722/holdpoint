@@ -8,6 +8,28 @@ The name comes from "hold point" in engineering quality control: a stage work ma
 
 > **Result, stated up front:** on 89 held-out task pairs, the gate did **not** improve paired accuracy: 41 of 89 with and without it. It cut irreversible actions on should-stop tasks from 25 to 6, and it also blocked legitimate work, taking should-act passes from 62 to 45. So it trades completed work for safety, and it does not yet tell the two apart better than the agent alone. [Full results](#real-agent-before-and-after).
 
+## Links
+
+| What | Link |
+|---|---|
+| Evidence site | https://chirag6722.github.io/holdpoint/ |
+| Break it yourself, in your browser, no key | https://chirag6722.github.io/holdpoint/#try |
+| 25-second video | https://chirag6722.github.io/holdpoint/#film |
+| Code | https://github.com/Chirag6722/holdpoint |
+| Tests on every push | https://github.com/Chirag6722/holdpoint/actions/workflows/ci.yml |
+| Every held-out run | [evidence/heldout.csv](evidence/heldout.csv) |
+| Rules written before the held-out run | [docs/PREREGISTRATION.md](docs/PREREGISTRATION.md), tag [`heldout-v1`](https://github.com/Chirag6722/holdpoint/tree/heldout-v1) |
+| Today's code replayed on the measured run | [evidence/heldout_replay.json](evidence/heldout_replay.json) |
+| Run log, checks and corrections | [evidence/m0-verification.md](evidence/m0-verification.md) |
+| Every injection attack and reviewer reply | [evidence/injection_suite.json](evidence/injection_suite.json) |
+| Adaptive attacker | [evidence/adaptive_attack.json](evidence/adaptive_attack.json) |
+| Mutation check | [evidence/mutation_check.json](evidence/mutation_check.json) |
+| Threat model | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) |
+| Proving a policy's limits | [docs/PROVE.md](docs/PROVE.md) |
+| Running the benchmark yourself | [bench/README.md](bench/README.md) |
+| Known limits | [Known limits](#known-limits) |
+| The benchmark used: AgentAbstain | [paper](https://arxiv.org/abs/2607.10059), [code](https://github.com/AntiQuality/agentabstain) |
+
 ## For judges, start here
 
 [Evidence site](https://chirag6722.github.io/holdpoint/): the results, every injection attack and the reviewer's reply, and [a page where you can break it yourself](https://chirag6722.github.io/holdpoint/#try). That page runs the real gate code in your browser, with your own rules and no key. It tests the fixed rules, not the reviewer. There is also [a 25-second video](https://chirag6722.github.io/holdpoint/#film).
