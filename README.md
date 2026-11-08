@@ -10,7 +10,7 @@ The name comes from "hold point" in engineering quality control: a stage work ma
 
 ## For judges, start here
 
-[Evidence site](https://chirag6722.github.io/holdpoint/): the results, every injection attack and the reviewer's reply, and [a page where you can break it yourself](https://chirag6722.github.io/holdpoint/#try). That page runs the real gate code in your browser, with your own rules and no key. It tests the fixed rules, not the reviewer.
+[Evidence site](https://chirag6722.github.io/holdpoint/): the results, every injection attack and the reviewer's reply, and [a page where you can break it yourself](https://chirag6722.github.io/holdpoint/#try). That page runs the real gate code in your browser, with your own rules and no key. It tests the fixed rules, not the reviewer. There is also [a 25-second video](https://chirag6722.github.io/holdpoint/#film).
 
 See it in 30 seconds, with no API keys:
 

@@ -213,3 +213,4 @@ td code,th code{white-space:nowrap}
   .plate .call{font-size:30px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.film{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--ink);border:2px solid var(--ink);margin:1.25rem 0}

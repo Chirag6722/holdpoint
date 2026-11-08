@@ -380,9 +380,15 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 <header class="hero" id="top" data-chapter="">{lines}<div class="wrap">
 <h1>An agent's irreversible call stops here until it passes review.</h1>
 <div class="opening"><div><p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
-<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#try">Break it yourself</a></div></div>
+<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#try">Break it yourself</a><a class="btn" href="#film">Watch the video</a></div></div>
 {plate}</div></div></header>
 <main>
+<section id="film" class="chapter paper" data-chapter="The short version"><div class="wrap">
+<h2>The short version, in 25 seconds</h2>
+<video class="film" controls preload="none" playsinline poster="holdpoint-poster.jpg" width="1920" height="1080"
+aria-describedby="film-text"><source src="holdpoint.mp4" type="video/mp4"></video>
+<p id="film-text">What the video shows: a payment call is held. In the keyless demo, a person approves one call, and a changed call and a replay are both held. On the benchmark, irreversible actions on should-stop tasks fell from 25 to 6, legitimate tasks completed fell from 62 to 45, and paired accuracy stayed at 41 of 89. There is no speech, only music.</p>
+</div></section>
 <section id="results" class="chapter paper" data-chapter="Did it work?"><div class="wrap">
 <h2>Did it work? Not on the measure we set in advance.</h2>
 <p>{link('bench/split.json', '89 held-out task pairs')} from the AgentAbstain benchmark, run once. Each task has a near-identical twin where acting is wrong, so a gate that blocks everything scores zero.</p>

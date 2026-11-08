@@ -220,6 +220,7 @@ td code,th code{white-space:nowrap}
   .plate .call{font-size:30px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.film{display:block;width:100%;height:auto;aspect-ratio:16/9;background:var(--ink);border:2px solid var(--ink);margin:1.25rem 0}
 </style></head><body>
 <nav class="pill" aria-label="Main"><a class="brand" href="#top">Holdpoint</a><span class="current" id="current" aria-hidden="true"></span>
 <span class="links"><a class="optional" href="#results">Results</a><a href="#try">Break it</a><a class="optional" href="#adaptive">Attacks</a><a class="optional" href="#attacked">Our flaws</a><a class="optional" href="#limits">Limits</a><a class="optional" href="#run">Run it</a><a class="code" href="https://github.com/Chirag6722/holdpoint">Code</a></span></nav>
@@ -228,7 +229,7 @@ td code,th code{white-space:nowrap}
 <path d="M0 90H180V270H0M1260 630H1440V810H1260M90 90V270M1350 630V810"/></svg><div class="wrap">
 <h1>An agent's irreversible call stops here until it passes review.</h1>
 <div class="opening"><div><p class="lede">Holdpoint sits between an agent and its MCP tools. Reads pass through. Calls that pay, delete, send or publish wait for automatic checks and an independent reviewer, or for a person to approve that exact call.</p>
-<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#try">Break it yourself</a></div></div>
+<div class="actions"><a class="btn primary" href="#results">See the result</a><a class="btn" href="#try">Break it yourself</a><a class="btn" href="#film">Watch the video</a></div></div>
 <svg class="plate" viewBox="0 0 1040 300" role="img"
 aria-label="A tool call travels from the agent along a pipe and stops at a shut valve carrying a yellow HELD tag. The pipe beyond it, to your tool, is empty.">
 <path class="pipe" d="M180 120H480"/><path class="pipe dead" d="M560 120H860"/>
@@ -241,6 +242,12 @@ aria-label="A tool call travels from the agent along a pipe and stops at a shut 
 <path class="tagbody" d="M446 168H594V284H446Z"/><circle cx="520" cy="186" r="8" fill="#000"/>
 <text class="tagword" x="520" y="246">HELD</text></g></svg></div></div></header>
 <main>
+<section id="film" class="chapter paper" data-chapter="The short version"><div class="wrap">
+<h2>The short version, in 25 seconds</h2>
+<video class="film" controls preload="none" playsinline poster="holdpoint-poster.jpg" width="1920" height="1080"
+aria-describedby="film-text"><source src="holdpoint.mp4" type="video/mp4"></video>
+<p id="film-text">What the video shows: a payment call is held. In the keyless demo, a person approves one call, and a changed call and a replay are both held. On the benchmark, irreversible actions on should-stop tasks fell from 25 to 6, legitimate tasks completed fell from 62 to 45, and paired accuracy stayed at 41 of 89. There is no speech, only music.</p>
+</div></section>
 <section id="results" class="chapter paper" data-chapter="Did it work?"><div class="wrap">
 <h2>Did it work? Not on the measure we set in advance.</h2>
 <p><a href="https://github.com/Chirag6722/holdpoint/blob/main/bench/split.json">89 held-out task pairs</a> from the AgentAbstain benchmark, run once. Each task has a near-identical twin where acting is wrong, so a gate that blocks everything scores zero.</p>
