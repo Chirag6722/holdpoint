@@ -143,6 +143,22 @@ The organiser's invitation named sentinel-agent, so we read all of it. It has no
 
 **Mutation check.** It now requires an unbroken copy to pass first, because a copy that fails for an unrelated reason would make every mutant look caught.
 
+## Independent review, 8 Nov 2026
+
+A separate reviewer, given only the code and the threat model, tried to break the newer features. It proved five problems by running code:
+
+1. **High:** with `--wait-seconds`, approving a waiting call skipped the gate's records. A `deny` session cap of 150 let 400 through, and the duplicate guard missed a repeat.
+2. **Medium:** `holdpoint prove` read the claim's number as a float, so it could prove a false claim.
+3. **Medium:** `100.0` and `100` hashed differently, so the duplicate guard missed a repeat.
+4. **Low to medium:** patterns missed lists and non-ASCII text.
+5. **Low:** the approval screen offered Approve on calls that could never run.
+
+It suspected two more without running them: a bad request length on the approval screen, and limits of infinity crashing the prover. We fixed both anyway.
+
+Each problem was reproduced as a failing test before its fix, in `tests/test_review_findings.py`. Two first attempts did not reproduce: one test passed for the wrong reason and one hung instead of failing. Both were rewritten until they failed for the stated reason. Every fix has a mutation case. The reviewer found no hole in the approval screen's token check, Host check, escaping or redirect.
+
+None of this was measured on the benchmark. The code at `heldout-v1` had no waiting, proof, session totals or patterns, so the measured run is not affected.
+
 ## Not yet verified
 
 | Item | Needs | Blocks |

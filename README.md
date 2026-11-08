@@ -309,6 +309,16 @@ After the measured run we tried to break the code ourselves. Each problem now ha
 | A hold could be edited before approval | Changing a hold file to pay Mallory and then approving it ran the Mallory call. This needs write access to the state folder | Each hold is signed when created, and a changed one is refused |
 | Tool definitions could change later | A server could change what a trusted tool says it does, and nothing noticed | Definitions are fingerprinted when first seen. A changed tool is held until `accept-tools` |
 
+**A second, independent review** on 8 Nov tried to break the newer features and proved five more problems by running code. Each now has a test that failed before its fix:
+
+| Problem | What the reviewer showed | Fix |
+|---|---|---|
+| Approving a waiting call skipped the gate's records | With `--wait-seconds`, a `deny` session cap of 150 let 400 through, and the duplicate guard missed a repeat | An approval now goes back through the gate, so its limits and records apply |
+| The proof rounded the claim's number | `holdpoint prove` reported PROVED for a false claim with many digits | The number is kept exactly as written |
+| `100.0` was a different call from `100` | The same refund ran twice past the duplicate guard | Numbers are written the same way before comparing calls |
+| Patterns missed lists and other scripts | A blocked address inside a list, or a blocked Russian word, passed | Patterns check every piece of text, and a missing argument counts as a match |
+| The approval screen offered Approve on refused calls | Clicking it created an approval that could never be used | Those calls show why they cannot be approved, and the approval is refused |
+
 **Effect on the measured run.** The saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. So the published numbers stand. They come from tag `heldout-v1`, and these fixes have not been measured on the benchmark.
 
 ## Honest status

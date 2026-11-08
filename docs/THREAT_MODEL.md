@@ -31,6 +31,9 @@ Each has a test in [tests/test_bypass.py](../tests/test_bypass.py).
 | Control the agent | Split a large payment into small ones | A session total sends it to a person, if a rule is set |
 | Control the agent | Send a malformed or missing amount | Counts as matching the rule, so it does not pass |
 | Control the agent | Send a negative amount to lower a session total | Counted by size, so it does not open room |
+| Control the agent | Write the same number another way, such as `100.0` for `100` | Treated as the same call |
+| Control the agent | Hide a blocked value inside a list or object, or in another script | Patterns check every piece of text |
+| Control the agent | Get a call approved while it waits, to pass a session cap | The approval goes back through the gate, so caps and records still apply |
 | Control the agent | Repeat a call that already ran, such as a payment after a timeout | Needs a person |
 | Control the agent | Keep retrying a tool that keeps failing | Needs a person after 3 failures |
 | Reach the approval screen from another website | Post an approval to localhost, or use a rebinding DNS name | Refused without the secret link and a local host name |

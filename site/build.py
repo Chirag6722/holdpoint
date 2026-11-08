@@ -244,11 +244,19 @@ def self_attack_section():
             ("A hold could be edited before approval", "Changing a hold file to pay Mallory and then approving it ran the Mallory call.",
              "Each hold is signed when created, and a changed one is refused. This attack needs write access to the state folder."),
             ("Tool definitions could change later", "A server could change what a trusted tool says it does. Nothing noticed.",
-             "Definitions are fingerprinted when first seen. A changed tool is held until a person accepts it.")]
+             "Definitions are fingerprinted when first seen. A changed tool is held until a person accepts it."),
+            ("Approving a waiting call skipped the gate's records", "An independent reviewer showed a <code>deny</code> session cap of 150 letting 400 through.",
+             "An approval now goes back through the gate, so its limits and records apply."),
+            ("The proof rounded the claim's number", "The reviewer got <code>holdpoint prove</code> to report PROVED for a false claim.",
+             "The number is kept exactly as written."),
+            ("<code>100.0</code> was a different call from <code>100</code>", "The reviewer ran the same refund twice past the duplicate guard.",
+             "Numbers are written the same way before comparing calls."),
+            ("Patterns missed lists and other scripts", "A blocked address inside a list, or a blocked word in Russian, passed.",
+             "Patterns check every piece of text, and a missing argument counts as a match.")]
     body = "".join(f"<tr><th scope='row'>{a}</th><td>{b}</td><td>{c}</td></tr>" for a, b, c in rows)
     score = f" The mutation check now breaks {len(mutants)} protections one at a time, and the tests caught {caught}." if mutants else ""
     return ("<section id='attacked' class='chapter yellow' data-chapter='We attacked our own gate'><div class='wrap'><h2>We attacked our own gate</h2>"
-            "<p>After the measured run we tried to break the code ourselves and found the problems below. Each now has a test that fails if the fix is removed."
+            "<p>After the measured run we tried to break the code ourselves, then asked an independent reviewer to try. Both found real problems, listed below. Each now has a test that failed before its fix."
             f"{score}</p><div class='scroll'><table class='wide'><thead><tr><th scope='col'>Problem</th><th scope='col'>What we saw</th><th scope='col'>Fix</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div>"
             "<p><strong>Effect on the measured run:</strong> the saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. "
