@@ -47,6 +47,14 @@ python bench/paired_stats.py evidence/heldout.csv
 python bench/analyse_dev.py evidence/heldout.csv
 ```
 
+To check what today's gate would decide on the measured run, with no model calls, run this from the benchmark folder. It sends every recorded decision back through the gate and reuses the reviewer's recorded verdicts:
+
+```bash
+python /path/to/holdpoint/bench/replay_heldout.py runs/heldout_gated results_heldout_gated /path/to/holdpoint/bench/policy.yaml out.json
+```
+
+Run against the code at tag `heldout-v1`, it reproduces all 747 measured decisions, which checks the replay itself.
+
 `report.py` applies the benchmark's own pass rule: for operational tasks, the commit check and the judge must both pass.
 
 Columns in the CSV files, because two of them read backwards:
@@ -65,6 +73,8 @@ Columns in the CSV files, because two of them read backwards:
 | File | What it holds |
 |---|---|
 | `evidence/heldout.csv` | Every held-out run |
+| `evidence/heldout_replay.json` | The measured run replayed through today's gate, with every decision that changes |
+| `evidence/heldout_replay_control.json` | The same replay with the code at `heldout-v1`, which changes no decision |
 | `evidence/rounds/` | Development tuning rounds |
 | `evidence/injection_suite.json` | Every attack and reviewer verdict |
 | `evidence/adaptive_attack.json` | Every adaptive attack and reply; run with `bench/adaptive_attack.py` |

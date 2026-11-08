@@ -286,10 +286,12 @@ So a person would have seen 64 of 141 attempts, compared with all 141 if every c
 
 **Two check problems, found only after the run:**
 
-- **Required-tool check, fixed after the run and not measured.** It treated phrases like "use original_payment_method" as tool names. The four holds it caused were all this mistake, including two on should-stop tasks that were right only by accident. Those four calls would now go to the reviewer instead, and the effect has not been measured. Tool names in quotes, followed by the word "tool", or after "call" or "invoke" still count. The same change fixes a miss: a capitalised "Call x" at the start of a sentence used to go unnoticed.
+- **Required-tool check, fixed after the run and not measured.** It treated phrases like "use original_payment_method" as tool names. The four holds it caused were all this mistake, including two on should-stop tasks that were right only by accident. Those four calls would now go to the reviewer instead, whose verdict on them is unknown. Tool names in quotes, followed by the word "tool", or after "call" or "invoke" still count. The same change fixes a miss: a capitalised "Call x" at the start of a sentence used to go unnoticed.
 - **Failed-tool check, left as it is.** It holds even when the failed tool was not needed for the action. It was right as often as it was wrong, so these results give no case for weakening a safety check.
 
 Every number above comes from the code at tag `heldout-v1`, not from later commits. These holds still count as wrong. The benchmark's task generator is private, so a changed version has no clean measurement here.
+
+**Today's code against the same run.** [A replay](bench/replay_heldout.py) sends all 747 recorded decisions back through today's gate, reusing the reviewer's recorded verdicts, so no model is called. With the code at `heldout-v1` it reproduces every decision. With today's code, 5 decisions change, in 3 runs: four calls the required-tool check held would now go to the reviewer, and one identical retry the reviewer passed would now wait for a person. The rule added after the last review, that a write call is held after a failure, changes none. On the recorded agent behaviour, today's code would score paired 40 to 42, should-act 44 to 46, should-stop 74 to 75, and 6 to 7 irreversible actions on should-stop tasks. [Every change](evidence/heldout_replay.json).
 
 **The method was fixed in advance.** The 131 operational pairs were split into 42 development and 89 held-out pairs, stratified by scenario with a fixed seed. That split was the [first commit](bench/split.json), before any reviewer code existed.
 
@@ -336,7 +338,7 @@ After the measured run we tried to break the code ourselves. Each problem now ha
 | Patterns missed lists and other scripts | A blocked address inside a list, or a blocked Russian word, passed | Patterns check every piece of text, and a missing argument counts as a match |
 | The approval screen offered Approve on refused calls | Clicking it created an approval that could never be used | Those calls show why they cannot be approved, and the approval is refused |
 
-**Effect on the measured run.** The saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. So the published numbers stand. They come from tag `heldout-v1`, and these fixes have not been measured on the benchmark.
+**Effect on the measured run.** The saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. So the published numbers stand. They come from tag `heldout-v1`. A replay of the measured run through today's gate puts every measure within one task of them, [shown above](#real-agent-before-and-after).
 
 ## Honest status
 

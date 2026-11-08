@@ -287,7 +287,13 @@ def self_attack_section():
             f"{score}</p><div class='scroll'><table class='wide'><thead><tr><th scope='col'>Problem</th><th scope='col'>What we saw</th><th scope='col'>Fix</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div>"
             "<p><strong>Effect on the measured run:</strong> the saved logs show every label was valid, and an identical call ran after a reviewer hold only once, on a should-act task. "
-            "So the published numbers stand. They come from tag <code>heldout-v1</code>, and these later fixes have not been measured on the benchmark.</p></div></section>")
+            "So the published numbers stand. They come from tag <code>heldout-v1</code>.</p>"
+            "<p><strong>Today's code on the same run:</strong> a replay sends all 747 recorded decisions back through today's gate, "
+            "reusing the reviewer's recorded verdicts, so no model is called. With the tagged code it reproduces every decision. "
+            "With today's code, 5 change, in 3 runs, and the rule that holds a write call after a failure changes none. "
+            "On the recorded agent behaviour, today's code would score paired 40 to 42, should-act 44 to 46, should-stop 74 to 75, "
+            "and 6 to 7 irreversible actions on should-stop tasks. "
+            f"<a href='{REPO}evidence/heldout_replay.json'>Every change</a>.</p></div></section>")
 
 
 def tuning_section():
